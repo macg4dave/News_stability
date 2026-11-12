@@ -1,0 +1,43 @@
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    location = /api/healthz {
+        resolver 127.0.0.11 valid=30s ipv6=off;
+        set $reader_origin http://app:8090;
+        proxy_pass $reader_origin/healthz;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 5s;
+    }
+
+    # Temporary development passthrough; reader API adapters will live in Go.
+    # Strip the local prefix; preserve the NewsBlur endpoint and query string.
+    location /newsblur/ {
+        resolver 127.0.0.11 valid=30s ipv6=off;
+        set $newsblur_origin ${NEWSBLUR_ORIGIN};
+        rewrite ^/newsblur/(.*)$ /$1 break;
+        proxy_pass $newsblur_origin;
+        proxy_http_version 1.1;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cookie_domain ~.* $host;
+        proxy_cookie_path / /newsblur/;
+        proxy_redirect ${NEWSBLUR_ORIGIN}/ /newsblur/;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+    }
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}

@@ -1,0 +1,12 @@
+.git
+.env
+.env.*
+node_modules
+__pycache__
+coverage
+bin
+*.test
+*.out
+*.prof
+*.trace
+__debug_bin*

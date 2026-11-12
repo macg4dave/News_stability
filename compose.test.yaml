@@ -1,0 +1,40 @@
+services:
+  mock-newsblur:
+    image: python:3.13-alpine
+    profiles: [test]
+    working_dir: /workspace
+    volumes:
+      - ./tests:/workspace:ro
+    command: python -B mock_newsblur.py
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  web-test:
+    build: .
+    profiles: [test]
+    networks:
+      default:
+        aliases: [reader.test]
+    environment:
+      NEWSBLUR_ORIGIN: http://mock-newsblur:8000
+    depends_on:
+      app:
+        condition: service_healthy
+      mock-newsblur:
+        condition: service_healthy
+
+  integration:
+    image: python:3.13-alpine
+    profiles: [test]
+    working_dir: /workspace
+    volumes:
+      - ./tests:/workspace:ro
+    environment:
+      TEST_BASE_URL: http://reader.test
+    command: python -B -m unittest -v integration
+    depends_on:
+      web-test:
+        condition: service_healthy
