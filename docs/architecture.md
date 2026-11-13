@@ -20,6 +20,11 @@ feed fetcher, publisher scraper, ranking system or story database.
   without API/image mocks or screenshot judgments. `npm test` runs this with Go,
   race, static security, notices and the faster browser contract tests in CI.
 
+The UI targets desktop browsers, with a persistent feed sidebar. All/Unread
+selection submits the visible search draft immediately; Enter submits search,
+and Clear search resets only the query. Pending requests are cancelled by newer
+selections, and response rendering preserves newer unsubmitted text.
+
 The three layouts share one ordered collection and action model. Layout changes
 are browser-local and do not request new data. List reparents one reusable article
 panel into its originating row; Cards/Magazine hide the collection for focused

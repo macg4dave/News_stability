@@ -20,7 +20,7 @@ volume on completion and prints synthetic container logs on failure.
 
 These tests never mock reader API/image responses. Chromium must decode images
 with nonzero natural dimensions through Nginx, Go, and the TLS upstream. Checks
-cover Cards/Magazine/List on desktop/mobile, inline full text, picture hiding,
+cover Cards/Magazine/List at desktop window sizes, inline full text, picture hiding,
 404 and invalid-image responses, pagination, read success/failure, logout, and
 session expiry. JUnit failures are saved to `test-results/e2e.xml`. The optional
 `review:ui` gallery is a design aid, not an acceptance gate. Synthetic upstream

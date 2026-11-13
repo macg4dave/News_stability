@@ -32,7 +32,7 @@ async function decoded(image) {
   })).toBe(true);
 }
 
-for (const width of [1440, 390]) {
+for (const width of [1440, 1024]) {
   test(`shipped images decode in every layout and inline article at width ${width}`, async ({ page, request }) => {
     await page.setViewportSize({ width, height: 900 });
     const errors = await login(page, request);

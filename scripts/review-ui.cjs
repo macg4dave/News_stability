@@ -51,7 +51,7 @@ async function main() {
   const browser = await chromium.launch();
   const images = [];
   try {
-    for (const width of [1440, 390]) {
+    for (const width of [1440, 1024]) {
       for (const theme of ["light", "dark", "paper"]) {
         for (const layout of ["cards", "magazine", "list"]) {
           const page = await browser.newPage({ viewport: { width, height: 960 }, reducedMotion: "reduce", locale: "en-GB", timezoneId: "Europe/London" });
@@ -91,7 +91,7 @@ async function main() {
       }
     }
     await writeFile(path.join(output, "manifest.json"), JSON.stringify({ generated_at: new Date().toISOString(), synthetic: true, images }, null, 2) + "\n");
-    await writeFile(path.join(output, "index.html"), `<!doctype html><html lang="en"><meta charset="utf-8"><title>News Stability visual review</title><style>body{font:16px system-ui;margin:2rem;background:#f7f6f2;color:#253531}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:2rem}img{width:100%;max-height:32rem;object-fit:cover;object-position:top;border:1px solid #bbb}a{color:inherit}</style><h1>News Stability visual review</h1><p>Original synthetic content only. Three layouts, three themes, desktop and phone; collection and expanded article. Click a picture for full size.</p><main>${images.map(item => `<figure><a href="${item.name}"><img loading="lazy" src="${item.name}" alt="${item.layout}, ${item.theme}, ${item.width}px, ${item.mode}"></a><figcaption>${item.name}</figcaption></figure>`).join("\n")}</main></html>`);
+    await writeFile(path.join(output, "index.html"), `<!doctype html><html lang="en"><meta charset="utf-8"><title>News Stability visual review</title><style>body{font:16px system-ui;margin:2rem;background:#f7f6f2;color:#253531}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:2rem}img{width:100%;max-height:32rem;object-fit:cover;object-position:top;border:1px solid #bbb}a{color:inherit}</style><h1>News Stability visual review</h1><p>Original synthetic content only. Three layouts, three themes, desktop window sizes; collection and expanded article. Click a picture for full size.</p><main>${images.map(item => `<figure><a href="${item.name}"><img loading="lazy" src="${item.name}" alt="${item.layout}, ${item.theme}, ${item.width}px, ${item.mode}"></a><figcaption>${item.name}</figcaption></figure>`).join("\n")}</main></html>`);
     const overview = await browser.newPage({ viewport: { width: 1800, height: 1000 } });
     await overview.goto(pathToFileURL(path.join(output, "index.html")).href);
     await overview.addStyleTag({ content: "body{margin:1rem}main{grid-template-columns:repeat(6,minmax(0,1fr));gap:.75rem}figure{margin:0}img{height:200px;object-fit:cover}figcaption{font-size:11px;overflow-wrap:anywhere}" });

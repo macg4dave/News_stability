@@ -14,8 +14,8 @@
   <header class="masthead">
     <a class="brand" href="/">News <strong>Stability</strong></a>
     <span class="tagline">A quieter place to read</span>
-    <button id="show-appearance" type="button" aria-haspopup="dialog">Appearance</button>
-    <div id="account" hidden><span id="username"></span><button id="show-shortcuts" type="button" aria-haspopup="dialog">Keyboard shortcuts</button><button id="logout" type="button">Sign out</button></div>
+    <button id="show-appearance" class="icon-button" aria-label="Appearance" title="Appearance" type="button" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-1.7-1.5-2.4-2.7-1.7l-1 .6c-1.2.7-2.6-.4-2.2-1.7l.4-1.3C16.2 5.4 14.6 3 12 3Z"/><path d="M7.5 10h.01M10 6.5h.01M6.5 14h.01"/></svg></button>
+    <div id="account" hidden><span id="username"></span><button id="show-shortcuts" class="icon-button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts" type="button" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 9h.01M12 9h.01M17 9h.01M7 12h.01M12 12h.01M17 12h.01M8 15h8"/></svg></button><button id="logout" class="icon-button" aria-label="Sign out" title="Sign out" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4H5v16h4M13 8l4 4-4 4M9 12h12"/></svg></button></div>
   </header>
   <main id="main" tabindex="-1">
     <section id="signin" class="signin" aria-labelledby="signin-heading">
@@ -35,25 +35,25 @@
     </section>
     <section id="reader" class="reader" aria-label="News reader" hidden>
       <aside class="subscriptions" aria-labelledby="feeds-heading">
-        <div class="panel-heading"><h2 id="feeds-heading">Your feeds</h2><button id="refresh" type="button">Refresh</button></div>
-        <button id="daily-briefing" class="briefing-link" type="button">Daily Briefing</button>
-        <button id="saved-stories" class="briefing-link" type="button">Saved stories</button>
+        <div class="panel-heading"><h2 id="feeds-heading">Your feeds</h2><button id="refresh" class="icon-button" aria-label="Refresh" title="Refresh" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1"/></svg></button></div>
+        <button id="daily-briefing" class="briefing-link" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h3M8 18h8"/></svg><span>Daily Briefing</span></button>
+        <button id="saved-stories" class="briefing-link" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12v17l-6-4-6 4Z"/></svg><span>Saved stories</span></button>
         <p id="feed-status" class="panel-status" role="status"></p>
         <nav id="feed-tree" aria-label="Feed folders"></nav>
       </aside>
       <section class="story-list" aria-labelledby="stories-heading">
-        <div class="panel-heading"><h2 id="stories-heading">Choose a feed</h2></div>
-        <div class="layout-control">
-          <label for="story-layout">Story layout</label>
-          <select id="story-layout"><option value="cards">Cards</option><option value="magazine">Magazine</option><option value="list">List</option></select>
+        <div class="panel-heading collection-heading"><h2 id="stories-heading">Choose a feed</h2>
+          <div class="layout-control">
+            <label for="story-layout">Story layout</label>
+            <select id="story-layout"><option value="cards">Cards</option><option value="magazine">Magazine</option><option value="list">List</option></select>
+          </div>
         </div>
         <form id="story-filters" class="story-filters" hidden>
           <label for="read-filter">Show</label>
           <select id="read-filter"><option value="all">All stories</option><option value="unread">Unread stories</option></select>
           <label for="story-query">Search this feed</label>
-          <input id="story-query" type="search" maxlength="256" placeholder="Search in NewsBlur">
-          <button type="submit">Apply</button>
-          <p class="muted">Search availability depends on your NewsBlur account.</p>
+          <input id="story-query" type="search" maxlength="256" placeholder="Search this feed (Enter)">
+          <button id="clear-search" class="icon-button" type="button" aria-label="Clear search" title="Clear search" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
         </form>
         <p id="story-status" class="panel-status" role="status">Your latest stories will appear here.</p>
           <p id="collection-updated" class="panel-status" hidden></p>

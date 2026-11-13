@@ -7,6 +7,13 @@ installed check below. Keep credentials and private stories out of this document
 
 ## Local verification
 
+Desktop UI follow-up, 13 November 2026: mobile-specific presentation and test
+sizes removed by product decision. 59 synthetic browser tests, 9 shipped-container
+tests, and the static security check pass. The 36-image gallery now uses 1024px
+and 1440px desktop windows. Search/filter changes are recorded in the
+[UI roadmap](ui-roadmap.md). These results do not repeat the broader Go, licensing,
+or installed-account checks described in the earlier run below.
+
 Latest local run: **13 November 2026, working-tree build** on Windows with
 Docker Linux containers. Go formatting/vet/tests/build and Linux race tests
 passed; **57 Chromium tests**, one static security test and **four isolated
@@ -37,7 +44,7 @@ python scripts/check_packaged_notices.py
 ```
 
 The visual command writes `.local/ui-review/index.html`, a manifest, and 36
-screenshots: three layouts, three themes, desktop/phone, collection/open article.
+screenshots: three layouts, three themes, two desktop window sizes, collection/open article.
 It uses synthetic API fixtures, blocks external traffic, checks horizontal
 overflow and browser exceptions, and leaves the preview/account untouched.
 Review images visually; screenshots alone do not prove accessibility.
@@ -87,7 +94,7 @@ an ordinary account. The operator supplies or authorizes that environment.
 - Complete keyboard-only and screen-reader review of navigation, date headings,
   status announcements, inline expansion/collapse, article controls and dialogs.
   Check focus visibility, 200% zoom/text, 320 CSS-pixel reflow and reduced motion.
-- Review representative content in intended desktop/mobile browsers, including
+- Review representative content in intended desktop browsers, including
   large text, CJK, right-to-left titles/body, missing metadata and failed pictures.
 - Exercise the actual HTTPS ingress and private CA configuration. Confirm the
   correct public origin, Secure/HttpOnly session cookie, CSRF/origin rejection,

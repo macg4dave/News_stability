@@ -101,6 +101,7 @@ function signedOut(text = "Sign in to your NewsBlur account.", clear = false) {
   el("collection-updated").hidden = true;
   el("story-filters").hidden = true;
   el("story-query").value = "";
+  updateSearchControl();
   el("read-filter").value = "all";
   state.filter = "all";
   state.query = "";
@@ -209,9 +210,28 @@ el("refresh").addEventListener("click", async () => {
 });
 el("daily-briefing").addEventListener("click", () => loadReadingPage({ kind: "briefing", page: 1 }));
 el("saved-stories").addEventListener("click", () => loadReadingPage({ kind: "saved", page: 1 }));
+// A filter change submits the visible query too, including any typed draft.
+// Keep request cancellation and confirmed collection state in loadReadingPage.
+function applyStoryFilters() {
+  if (state.view === "feed" && state.feed) loadReadingPage({ kind: "feed", feed: state.feed, page: 1, filter: el("read-filter").value, query: el("story-query").value.trim() });
+}
+function updateSearchControl() {
+  el("clear-search").hidden = !el("story-query").value;
+}
 el("story-filters").addEventListener("submit", (event) => {
   event.preventDefault();
-  if (state.feed) loadReadingPage({ kind: "feed", feed: state.feed, page: 1, filter: el("read-filter").value, query: el("story-query").value.trim() });
+  applyStoryFilters();
+});
+el("read-filter").addEventListener("change", applyStoryFilters);
+el("story-query").addEventListener("input", updateSearchControl);
+el("story-query").addEventListener("search", () => {
+  if (!el("story-query").value) applyStoryFilters();
+});
+el("clear-search").addEventListener("click", () => {
+  el("story-query").value = "";
+  updateSearchControl();
+  el("story-query").focus();
+  applyStoryFilters();
 });
 
 function feedButton(feed) {
@@ -669,6 +689,7 @@ async function loadReadingPage(selection) {
   const sameFeed = kind === "feed" && state.view === "feed" && feed?.id === state.feed?.id;
   const filter = selection.filter ?? (sameFeed ? state.filter || "all" : "all");
   const query = selection.query ?? (sameFeed ? state.query || "" : "");
+  const queryDraft = el("story-query").value;
   state.storyRequest?.abort();
   const controller = new AbortController();
   state.storyRequest = controller;
@@ -691,8 +712,11 @@ async function loadReadingPage(selection) {
     state.filter = filter;
     state.query = query;
     el("story-filters").hidden = kind !== "feed";
-    el("read-filter").value = filter;
-    el("story-query").value = query;
+    if (!append) {
+      el("read-filter").value = filter;
+      if (!sameFeed || el("story-query").value === queryDraft) el("story-query").value = query;
+      updateSearchControl();
+    }
     const known = new Set(append ? state.stories.map((story) => story.hash) : []);
     const fresh = result.stories.filter((story) => {
       if (known.has(story.hash)) return false;

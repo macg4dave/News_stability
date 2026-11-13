@@ -58,7 +58,7 @@ test("search and unread filters use NewsBlur and persist across pagination", asy
   await page.getByLabel("Show", { exact: true }).selectOption("unread");
   await page.getByLabel("Search this feed").fill("cats & dogs");
   model.hasMore = true;
-  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await page.getByLabel("Search this feed").press("Enter");
   await expect(page.locator("#article-content")).toBeEmpty();
   await expect.poll(() => model.reads.at(-1).get("page")).toBe("2");
   expect(model.reads.at(-1).get("query")).toBe("cats & dogs");
@@ -119,8 +119,8 @@ test("saved view and unsupported briefing are explicit", async ({ page }) => {
   await expect(page.locator("#story-status")).toContainText("not available");
 });
 
-test("mobile reading and dialogs fit the viewport", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+test("desktop reading and dialogs fit the viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 900 });
   await fixture(page);
   await openStory(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -157,7 +157,7 @@ test("layouts preserve stories, selection, filters and request state", async ({ 
   await page.getByRole("button", { name: "Back to stories", exact: true }).click();
   await page.getByLabel("Show", { exact: true }).selectOption("unread");
   await page.getByLabel("Search this feed").fill("cats");
-  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await page.getByLabel("Search this feed").press("Enter");
   await expect(page.locator("#article-content")).toBeEmpty();
   await page.locator("#stories .story").first().click();
   await page.getByRole("button", { name: "Back to stories", exact: true }).click();
@@ -198,8 +198,8 @@ test("invalid or unavailable layout storage keeps controls usable", async ({ pag
   await expect(page.locator("#reader")).toHaveAttribute("data-layout", "list");
 });
 
-test("all layouts fit a narrow viewport with long titles", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+test("all layouts fit a smaller desktop window with long titles", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 900 });
   const model = await fixture(page);
   model.stories[0].title = "LongHeadline".repeat(30);
   await page.getByRole("button", { name: "Synthetic feed" }).click();
@@ -226,7 +226,7 @@ test("excerpts are inert text and disappear in compact List", async ({ page }) =
 });
 
 test("article return restores origin after linked coverage and preserves layout", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 1024, height: 900 });
   const model = await fixture(page);
   model.stories.push(...Array.from({ length: 10 }, (_, i) => story(`1:extra${i}`, `Additional story ${i}`)));
   model.stories[0].related = [{ hash: "1:linked", title: "Read related coverage" }];
@@ -298,7 +298,7 @@ test("hidden pictures avoid requests in List and Cards; preference survives relo
   await expect(page.getByLabel("Pictures", { exact: true })).toHaveValue("hide");
 });
 
-test("List shows compact thumbnails beside headlines on desktop and mobile", async ({ page }) => {
+test("List shows compact thumbnails beside headlines on desktop window sizes", async ({ page }) => {
   const model = await fixture(page);
   model.stories[0].picture = "https://images.invalid/photo.png";
   await page.route("https://images.invalid/**", route => route.fulfill({ contentType: "image/png", body: pixelPNG }));
@@ -307,7 +307,7 @@ test("List shows compact thumbnails beside headlines on desktop and mobile", asy
   const image = page.locator("#stories .story-picture img");
   await expect(image).toBeVisible();
   await expect.poll(() => image.evaluate(img => img.naturalWidth)).toBeGreaterThan(0);
-  for (const width of [1440, 390]) {
+  for (const width of [1440, 1024]) {
     await page.setViewportSize({ width, height: 900 });
     const picture = await page.locator("#stories .story-picture").boundingBox();
     const title = await page.locator("#stories .story strong").first().boundingBox();
@@ -399,13 +399,13 @@ test("late full text cannot replace a subsequently opened story", async ({ page 
 });
 
 for (const layout of ["cards", "magazine"]) {
-  test(`${layout} opens a focused article and restores the collection on desktop, tablet and phone`, async ({ page }) => {
+  test(`${layout} opens a focused article and restores the collection on desktop window sizes`, async ({ page }) => {
     const model = await fixture(page);
     model.stories.push(...Array.from({ length: 28 }, (_, i) => story(`1:focus${i}`, `Reading story ${i}`)));
     await page.getByLabel("Story layout", { exact: true }).selectOption(layout);
     await page.getByRole("button", { name: "Synthetic feed" }).click();
     const target = page.locator("#stories .story").nth(8);
-    for (const width of [1440, 900, 390]) {
+    for (const width of [1440, 1024]) {
       await page.setViewportSize({ width, height: 900 });
       await target.scrollIntoViewIfNeeded();
       const position = await page.evaluate(() => scrollY);
@@ -417,8 +417,7 @@ for (const layout of ["cards", "magazine"]) {
       expect(title.y).toBeGreaterThanOrEqual(0);
       expect(title.y + title.height).toBeLessThan(900);
       expect(await page.evaluate(() => scrollY)).toBe(0);
-      if (width === 390) await expect(page.locator(".subscriptions")).toBeHidden();
-      if (width === 900) {
+      if (width === 1024) {
         await page.keyboard.press("g");
         await page.keyboard.press("s");
       } else await page.getByRole("button", { name: "Back to stories", exact: true }).click();
@@ -433,7 +432,7 @@ for (const layout of ["cards", "magazine"]) {
   });
 }
 
-for (const width of [1440, 900, 390]) {
+for (const width of [1440, 1024]) {
   test(`List expands one article in place at ${width}px and retains its controls`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const model = await fixture(page);
@@ -661,8 +660,8 @@ for (const theme of ["light", "dark", "paper"]) {
   });
 }
 
-test("large text and reduced motion retain reading and dialog controls on a phone", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+test("large text and reduced motion retain reading and dialog controls on desktop", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 900 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   const model = await fixture(page);
   model.stories[0].title = "قراءة الأخبار بهدوء — とても長い見出しと読みやすい本文";
@@ -777,12 +776,13 @@ test("session expiry during automatic read clears account content", async ({ pag
 
 test("unread continuation restarts its scan after read writes without replacing loaded rows", async ({ page }) => {
   const model = await fixture(page);
-  model.stories = Array.from({ length: 30 }, (_, i) => story(`1:unread${i}`, `Unread story ${i}`));
+  // Keep the end outside the loading threshold until the explicit footer scroll,
+  // including when the toolbar and rows use a more compact presentation.
+  model.stories = Array.from({ length: 60 }, (_, i) => story(`1:unread${i}`, `Unread story ${i}`));
   model.hasMore = true;
   await page.getByLabel("Story layout", { exact: true }).selectOption("list");
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await page.getByLabel("Show", { exact: true }).selectOption("unread");
-  await page.getByRole("button", { name: "Apply", exact: true }).click();
   await expect.poll(() => model.reads.length).toBe(2);
   await expect(page.locator("#stories")).toHaveAttribute("aria-busy", "false");
   await page.locator("#stories .story").first().scrollIntoViewIfNeeded();
@@ -795,7 +795,7 @@ test("unread continuation restarts its scan after read writes without replacing 
   expect(model.reads.at(-1).get("page")).toBe("1");
   expect(model.reads.at(-1).get("read_filter")).toBe("unread");
   expect(await page.locator("#stories .story").first().evaluate(node => node === window.unreadRow)).toBe(true);
-  await expect(page.locator("#stories .story")).toHaveCount(31);
+  await expect(page.locator("#stories .story")).toHaveCount(61);
 });
 
 test("a downward scroll gesture marks a fully visible short article read", async ({ page }) => {
@@ -886,4 +886,80 @@ test("hidden pictures suppress NewsBlur relay requests too", async ({ page }) =>
   await openStory(page);
   await expect(page.locator("#article-content img")).not.toHaveAttribute("src");
   expect(requests).toBe(0);
+});
+
+test("filter changes submit the visible draft and clear search resets only the query", async ({ page }) => {
+  const model = await fixture(page);
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  const query = page.getByLabel("Search this feed");
+  await query.fill("cats & dogs");
+  expect(model.reads).toHaveLength(1);
+  await page.getByLabel("Show", { exact: true }).selectOption("unread");
+  await expect.poll(() => model.reads.at(-1).get("query")).toBe("cats & dogs");
+  expect(model.reads.at(-1).get("read_filter")).toBe("unread");
+  await expect(page.locator("#stories")).toHaveAttribute("aria-busy", "false");
+  await page.getByRole("button", { name: "Clear search", exact: true }).click();
+  await expect.poll(() => model.reads.at(-1).get("query")).toBe("");
+  expect(model.reads.at(-1).get("read_filter")).toBe("unread");
+  await expect(query).toBeFocused();
+  await expect(query).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Clear search", exact: true })).toBeHidden();
+});
+
+test("a pending search preserves newer typing and a later filter cancels stale results", async ({ page }) => {
+  await fixture(page);
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  let started;
+  const requested = new Promise(resolve => { started = resolve; });
+  await page.route("**/api/feeds/1/stories?**", async route => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("query") !== "first") return route.fallback();
+    started();
+    await held;
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ stories: [story("1:stale", "Stale result")], page: 1, can_continue: false }) });
+  });
+  const query = page.getByLabel("Search this feed");
+  await query.fill("first");
+  await query.press("Enter");
+  await requested;
+  await query.fill("new draft");
+  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.getByLabel("Show", { exact: true }).selectOption("unread");
+  await expect(page.locator("#stories")).toHaveAttribute("aria-busy", "false");
+  release();
+  await expect(query).toHaveValue("new draft");
+  await expect(page.getByLabel("Show", { exact: true })).toHaveValue("unread");
+  await expect(page.locator("#stories")).not.toContainText("Stale result");
+  await expect(page.getByLabel("Story layout", { exact: true })).toHaveValue("list");
+});
+
+test("search failures retain the query for retry and successful responses preserve newer drafts", async ({ page }) => {
+  const model = await fixture(page);
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  model.failRead = true;
+  const query = page.getByLabel("Search this feed");
+  await query.fill("retry me");
+  await query.press("Enter");
+  await expect(page.locator("#story-status")).toHaveClass(/error/);
+  await expect(query).toHaveValue("retry me");
+  await expect(page.locator("#stories .story")).toHaveCount(2);
+  model.failRead = false;
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  let started;
+  const requested = new Promise(resolve => { started = resolve; });
+  await page.route("**/api/feeds/1/stories?**", async route => {
+    started();
+    await held;
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ stories: [story("1:retry", "Retried result")], page: 1, can_continue: false }) });
+  });
+  await query.press("Enter");
+  await requested;
+  await query.fill("next draft");
+  release();
+  await expect(page.locator("#stories")).toContainText("Retried result");
+  await expect(query).toHaveValue("next draft");
+  await expect(page.getByRole("button", { name: "Clear search", exact: true })).toBeVisible();
 });

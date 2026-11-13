@@ -162,7 +162,7 @@ or requiring credentials. Go TLS fixtures and Chromium browser API fixtures use
 synthetic data only. Browser checks require Node 24+ and Python. Linux CI also runs
 `go test -race ./...`. See [verification rules](docs/ai/testing.md) for details.
 `npm run review:ui` writes a 36-image synthetic review gallery to
-`.local/ui-review/index.html`, covering every layout/theme on desktop and phone.
+`.local/ui-review/index.html`, covering every layout/theme at desktop window sizes.
 
 ## Early development references
 

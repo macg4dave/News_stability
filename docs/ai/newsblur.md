@@ -23,7 +23,7 @@ References: [API](https://www.newsblur.com/api),
 - Story HTML is untrusted. Use a maintained sanitizer with a deliberate allowlist
   and safe link handling before rendering it. Test hostile markup.
 - Keep the interface calm: clear navigation, accessible controls, keyboard support,
-  loading/empty/error states, and mobile reading. Server internals do not belong
+  loading/empty/error states, and desktop reading. Server internals do not belong
   in normal reader flows.
 - Attribute NewsBlur as the source in the finished reader as required by its API
   guidelines. Check applicable terms when implementing distribution or monetization.
