@@ -1,67 +1,80 @@
 # Development notes
 
-## Services and configuration
+See [architecture](architecture.md), [frontend](frontend.md), [sessions](sessions.md),
+and [debugging](debugging.md) for ownership and debugging details.
 
-See [architecture](architecture.md) for package boundaries and
-[debugging](debugging.md) for native execution and breakpoints.
+## Configuration
 
 | Setting | Default | Consumer |
 | --- | --- | --- |
 | `WEB_PORT` | `8080` | Compose; Nginx published on loopback |
-| `NEWSBLUR_ORIGIN` | `http://news101.lan` | Nginx template; no trailing slash |
-| `HTTP_ADDR` | `127.0.0.1:8090` natively; `:8090` in Compose | Go process; Compose sets the container value explicitly |
+| `HTTP_ADDR` | `127.0.0.1:8090` natively; `:8090` in Compose | Go listener |
+| `PUBLIC_ORIGIN` | `http://localhost:8080` | Go Origin checks and cookie policy |
+| `NEWSBLUR_ORIGIN` | `https://news101.lan` | Go upstream client; HTTPS, no trailing slash |
+| `NEWSBLUR_CA_FILE` | Unset: system trust | Go; optional PEM file adding trusted CA roots |
 
-Only Compose automatically reads the root `.env` file. Native Go reads process
-environment variables. `NEWSBLUR_ORIGIN` is currently used by Nginx, not Go;
-move its validation to Go when the upstream client is implemented.
+Only Compose automatically reads `.env`. Native Go reads process environment
+variables. Change `PUBLIC_ORIGIN` when changing the browser hostname or `WEB_PORT`.
+Use the exact configured address in the browser: `localhost` and `127.0.0.1` are
+different origins. Non-loopback origins require HTTPS termination in front of Nginx.
 
-Nginx serves `/healthz` as plain-text liveness. `/api/healthz` forwards to Go's
-JSON `/healthz`. Neither endpoint authenticates to or probes NewsBlur. The Go
-container runs as a non-root user without a published host port. Nginx waits for
-Go's health check before starting. Shutdown allows 10 seconds for Go requests to
-drain, within Compose's 15-second stop grace period.
+Compose passes the public and NewsBlur origins to Go. To supply a private CA,
+create a local Compose override with a read-only PEM mount and the container path:
 
-## Development proxy
+```yaml
+services:
+  app:
+    environment:
+      NEWSBLUR_CA_FILE: /etc/news-stability/lan-ca.pem
+    volumes:
+      - ./lan-ca.pem:/etc/news-stability/lan-ca.pem:ro
+```
 
-The browser loads static reader assets from Nginx. Requests under `/newsblur/`
-are forwarded to `NEWSBLUR_ORIGIN` with the prefix removed. For example,
-`/newsblur/reader/feeds` reaches `http://news101.lan/reader/feeds` by default.
-Query strings and request bodies are preserved. Cookie domains are rewritten to
-the reader host and paths are scoped to `/newsblur/`.
+Keep local certificates and deployment overrides outside Git. The file must be
+readable by the non-root Go user. This loads trusted roots without bypassing
+certificate/hostname verification. Native Go can use a local absolute PEM path.
+The LAN certificate remains unverified in this development session; providing a
+configuration path is not evidence that the installed certificate chain is trusted.
 
-The existing NewsBlur deployment is managed separately. If `news101.lan` is
-instead intended as the reader hostname, change `NEWSBLUR_ORIGIN` to the actual
-NewsBlur server and configure DNS and the Compose port binding accordingly.
+## Request flow
 
-This passthrough is temporary. Future explicit reader API endpoints live in Go;
-see the [roadmap](roadmap.md), [backlog](backlog.md), and
-[blockers](blockers.md) for the implementation sequence and dependencies.
+Nginx serves static assets and plain-text `/healthz`. `/api/healthz` reaches the
+Go JSON health handler. Other `/api/` routes preserve their paths and reach Go's
+explicit reader endpoints. The old `/newsblur/` passthrough is removed. The browser
+never receives NewsBlur cookies and never chooses an upstream URL.
 
-## API references
+`GET /api/session` bootstraps a session and CSRF token. Login/logout require the
+reader cookie, `X-CSRF-Token`, and matching Origin. `GET /api/feeds` returns adapted
+folder navigation; `GET /api/feeds/{id}/stories?page=1` returns a sanitized story
+page. See [session design](sessions.md) for expiry and error semantics.
 
-- https://www.newsblur.com/api
-- https://github.com/samuelclay/newsblur
+Health is liveness only; it does not probe NewsBlur. The Go container has no
+published host port. Nginx waits for Go health. Go shutdown drains for up to ten
+seconds within Compose's 15-second stop grace period.
 
-The documented API supports cookie sessions via `POST /api/login` and
-`POST /api/logout`. Initial reads use `GET /reader/feeds` and
-`GET /reader/feed/:id`. Confirm endpoints and response shapes against the installed
-server version. Do not assume newsblur.com and the LAN server run the same version.
+## Build and development
 
-Use browser requests with credentials enabled. Do not store passwords or session
-cookies in localStorage. Before implementing login, verify CSRF, trusted origins,
-cookie Secure/SameSite flags, redirects, and HTTPS behavior through the proxy.
-The proxy does not bypass upstream authentication or CSRF protection. Cookies
-marked Secure by an HTTPS upstream require HTTPS on the reader as well.
+```sh
+docker compose up --build -d app web
+docker compose logs -f app web
+```
 
-## Configuration changes
+Static assets are mounted for immediate editing. Rebuild for Go, dependencies,
+Dockerfile, or Nginx configuration changes. Go modules are pinned in `go.mod` and
+`go.sum`; bluemonday supplies the article sanitizer. No frontend install/build is
+required. Stop services with `docker compose down`.
 
-Nginx templates are copied into the image: rebuild after editing them. Static
-files are mounted by the development service. `.env` is local and ignored by Git.
-No real credentials or feed content should be added to test fixtures.
+## Verification status and next pass
 
-Rebuild Go changes with `docker compose up --build -d app web`. The runtime image
-does not contain a debugger; use native Go debugging for fast iteration. CI checks
-formatting, vet, race-enabled tests, build, Compose configuration, and isolated
-cross-service integration. Update `go.mod`, `Dockerfile.reader`, and documentation
-together when changing the minimum Go version. No `go.sum` is needed until a
-third-party module is added.
+The larger source pass on 2026-11-13 intentionally defers test execution. Native
+Go build, Go formatting, JavaScript syntax, and diff checks passed. Existing
+health test callers and integration/static test sources were adapted to the new
+routes; new session/CSRF/expiry/sanitizer/reading cases still need implementation
+and execution. Earlier M0 and isolated-client test results do not validate this flow.
+
+The next pass should run the [verification commands](ai/testing.md), add focused
+TLS mock-upstream coverage for the complete auth/reading flow and hostile markup,
+then perform browser review. The Compose integration stack uses an unreachable
+synthetic origin and covers static/proxy/unauthenticated boundaries; it cannot
+prove authenticated behavior. Never use real subscriptions or login credentials
+as routine fixtures. Installed version and test-account acceptance remain B02.

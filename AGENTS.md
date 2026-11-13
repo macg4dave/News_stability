@@ -1,6 +1,6 @@
 # AI contributor entry point
 
-News Stability is a reader for an existing NewsBlur server at `http://news101.lan`.
+News Stability is a reader for an existing NewsBlur server at `https://news101.lan`.
 Go is the server language. NewsBlur owns feeds, stories, read state, intelligence,
 and briefing generation. Keep this application focused on reading and presentation.
 

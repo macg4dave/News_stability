@@ -8,8 +8,8 @@ while an integration dependency is unresolved.
 | Milestone | Status | Deliverable and exit criteria | Dependencies |
 | --- | --- | --- | --- |
 | M0 — Foundation | Complete | Go layout, focused AI rules, debugger configuration and CLI breakpoint smoke check, Nginx/Go services, health checks, native checks, Linux race tests, proxy integration, CI configuration, documentation | Editor-specific launch remains a developer setup check; see B04 |
-| M1 — NewsBlur contract and session | Next | Confirm installed version and endpoints; document fixtures; login/logout, expiry and CSRF behavior tested end to end; no credentials in browser storage or logs | B02; authentication design and HTTPS/cookie checks |
-| M2 — Core reading | Planned | Folders/feeds with unread counts; paginated story list; readable sanitized story view; mark read/unread and save/unsave; failures preserve user context | M1; frontend choice (P01) |
+| M1 — NewsBlur contract and session | In progress: session/reader source; validation pending | Confirm installed version and endpoints; document fixtures; login/logout, expiry and CSRF behavior tested end to end; no credentials in browser storage or logs | B02; authentication design and HTTPS/cookie checks |
+| M2 — Core reading | Source in progress; validation pending | Folders/feeds with unread counts; paginated story list; readable sanitized story view; mark read/unread and save/unsave; failures preserve user context | M1; frontend choice (P01) |
 | M3 — Daily Briefing | Planned, discovery in M1 | Show NewsBlur-generated briefing and story links; handle pending, empty, unsupported, and failed states; settings use existing endpoints where available | M1; B03; basic story navigation from M2 |
 | M4 — Polished reader | Planned | Keyboard navigation, responsive layouts, accessible focus/controls, themes and useful NewsBlur search/filtering; loading/error behavior reviewed | M2/M3; prioritized backlog |
 | M5 — First usable release | Planned | HTTPS deployment guide; secure session and hostile HTML checks; browser smoke tests; reproducible container build and install/upgrade notes | M4; full CI and real-server acceptance |
@@ -25,3 +25,9 @@ while an integration dependency is unresolved.
 See [blockers](blockers.md) for evidence and unblocking actions, and
 [backlog](backlog.md) for smaller work items. Update these documents when the
 corresponding work lands; do not leave completed work permanently listed as next.
+
+M1 evidence and remaining acceptance checks: [NewsBlur contract discovery](newsblur-contract.md).
+
+The 2026-11-13 source pass adds the login/session flow and the first reading UI.
+Test execution is deferred for this larger implementation batch; no milestone
+is newly complete. See [development status](development.md#verification-status-and-next-pass).

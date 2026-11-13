@@ -3,25 +3,57 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>News Stability — development</title>
-  <style>
-    body { font: 1.1rem/1.6 system-ui, sans-serif; max-width: 48rem; margin: 10vh auto; padding: 0 1.5rem; color: #243341; background: #f7f8fa; }
-    a { color: #175f91; } code { background: #e7ecf0; padding: .15rem .3rem; }
-  </style>
+  <meta name="color-scheme" content="light dark">
+  <title>News Stability</title>
+  <link rel="stylesheet" href="/reader.css">
+  <script type="module" src="/reader.js"></script>
 </head>
 <body>
-  <main>
-    <h1>News Stability</h1>
-    <p>A news reader for a self-hosted NewsBlur server. Development starts here.</p>
-    <p>The development proxy uses <code>/newsblur/</code>. Its default upstream is <code>http://news101.lan</code>.</p>
-    <ul>
-      <li><a href="https://www.newsblur.com/api">NewsBlur API documentation</a></li>
-      <li><a href="https://github.com/samuelclay/newsblur">NewsBlur source on GitHub</a></li>
-      <li><a href="http://news101.lan">Local NewsBlur server</a></li>
-      <li><a href="/healthz">Reader web server health</a></li>
-      <li><a href="/api/healthz">Go service health</a></li>
-    </ul>
-    <p>Login, feeds, story reading, and a view of NewsBlur's Daily Briefing are planned next.</p>
+  <a class="skip-link" href="#main">Skip to reading</a>
+  <header class="masthead">
+    <a class="brand" href="/">News <strong>Stability</strong></a>
+    <span class="tagline">A quieter place to read</span>
+    <div id="account" hidden><span id="username"></span><button id="logout" type="button">Sign out</button></div>
+  </header>
+  <main id="main" tabindex="-1">
+    <section id="signin" class="signin" aria-labelledby="signin-heading">
+      <p class="eyebrow">YOUR NEWS, AT YOUR PACE</p>
+      <h1 id="signin-heading">Make room for a good read.</h1>
+      <p>Sign in with your NewsBlur account to pick up your feeds and stories.</p>
+      <form id="login-form">
+        <label for="login-username">NewsBlur username</label>
+        <input id="login-username" name="username" autocomplete="username" required maxlength="256">
+        <label for="login-password">Password</label>
+        <input id="login-password" name="password" type="password" autocomplete="current-password" maxlength="4096">
+        <button id="login-submit" type="submit" disabled>Sign in</button>
+      </form>
+      <p id="login-status" role="status" aria-live="polite">Connecting to the reader...</p>
+      <button id="reconnect" type="button" hidden>Try connecting again</button>
+      <p class="muted">Your feeds and reading history stay with NewsBlur.</p>
+    </section>
+    <section id="reader" class="reader" aria-label="News reader" hidden>
+      <aside class="subscriptions" aria-labelledby="feeds-heading">
+        <div class="panel-heading"><h2 id="feeds-heading">Your feeds</h2><button id="refresh" type="button">Refresh</button></div>
+        <p id="feed-status" class="panel-status" role="status"></p>
+        <nav id="feed-tree" aria-label="Feed folders"></nav>
+      </aside>
+      <section class="story-list" aria-labelledby="stories-heading">
+        <div class="panel-heading"><h2 id="stories-heading">Choose a feed</h2></div>
+        <p id="story-status" class="panel-status" role="status">Your latest stories will appear here.</p>
+        <ul id="stories" class="stories"></ul>
+        <div class="pagination"><button id="previous" type="button" hidden>Previous page</button><span id="page-label"></span><button id="next" type="button" hidden>Next page</button></div>
+      </section>
+      <article id="article" class="article" aria-labelledby="article-title">
+        <p class="eyebrow" id="article-feed">SETTLE IN</p>
+        <h1 id="article-title" tabindex="-1">A little space for the stories that matter.</h1>
+        <p id="article-meta" class="muted">Choose a feed, then a story to start reading.</p>
+        <a id="original" target="_blank" rel="noopener noreferrer" hidden>Read the original</a>
+        <div id="article-content" class="article-content"></div>
+      </article>
+    </section>
+    <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
   </main>
+  <footer>Powered by <a href="https://www.newsblur.com/" rel="noopener noreferrer" target="_blank">NewsBlur</a>. Built for reading.</footer>
+  <noscript><p class="notice">Enable JavaScript to sign in and read your feeds.</p></noscript>
 </body>
 </html>

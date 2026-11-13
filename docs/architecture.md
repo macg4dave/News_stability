@@ -11,8 +11,8 @@ No reader database, background fetcher, or AI generation service is planned.
 Go is the server language. Start with its standard library; no framework is
 needed for the current service. Go 1.26 is the minimum baseline in `go.mod` and
 the container; newer supported Go versions can be used locally. Keep CI and
-container versions aligned when changing the baseline. The frontend framework
-is not chosen or installed yet; Svelte/TypeScript is a candidate, not a dependency.
+container versions aligned when changing the baseline. The frontend uses native
+JavaScript modules and CSS, with no bundler or framework; see [frontend](frontend.md).
 
 ## Current request flow
 
@@ -21,15 +21,16 @@ Browser -> Nginx :8080
             /                 -> static web/ files
             /healthz          -> Nginx liveness (plain text)
             /api/healthz      -> Go app:8090/healthz (JSON)
-            /newsblur/*       -> configured NewsBlur origin (prefix stripped)
+            /api/*            -> Go reader adapters -> configured HTTPS NewsBlur
 ```
 
-The direct NewsBlur proxy is an early development tool. It is not a completed
-login design. Go currently provides lifecycle/configuration and health only;
-it does not yet call NewsBlur. As each feature is implemented, explicit Go
-endpoints will own its authentication, transport, and response adaptation.
-Remove corresponding temporary paths when superseded rather than maintaining
-two implementations. Do not build an unrestricted user-configurable proxy.
+The temporary `/newsblur/*` passthrough has been removed. Explicit Go endpoints
+own login/logout, cookie sessions, feed navigation, and story pages. Upstream
+cookies stay in a per-reader server-side jar; the browser receives an opaque
+reader session cookie and a CSRF token. Story HTML is sanitized before JSON output.
+The source compiles, but the new reading/session flow has not yet had its test or
+installed-server acceptance pass. See [sessions](sessions.md) and [contract
+discovery](newsblur-contract.md). No unrestricted upstream proxy is exposed.
 
 ## Repository layout
 
@@ -37,9 +38,12 @@ two implementations. Do not build an unrestricted user-configurable proxy.
 cmd/reader/              executable wiring, process signals, server settings
 internal/config/         environment loading and validation
 internal/httpserver/     routing and HTTP lifecycle; tests beside implementation
-web/                    static development page; future reader assets
+internal/newsblur/       fixed-origin upstream transport and response types
+internal/session/        bounded in-memory reader sessions and expiry
+internal/article/        maintained HTML sanitizer and safe article links
+web/                    reader HTML, JavaScript modules, and responsive CSS
 nginx/                  entry-point configuration template
-tests/                  mock upstream and cross-service integration tests
+tests/                  static security and cross-service integration test sources
 docs/ai/                focused contributor rules
 docs/                   architecture, development, debugging, planning
 .vscode/                native Go debugging and editor tasks
@@ -51,16 +55,15 @@ compose*.yaml           local services and isolated integration stack
 
 This follows the [official Go server layout guidance](https://go.dev/doc/modules/layout):
 commands in `cmd`, application packages in `internal`. Go does not require a
-universal project skeleton. Packages such as `internal/newsblur` or
-`internal/session` should appear only when implemented behavior needs them.
+universal project skeleton. Packages appear when implemented behavior needs them.
 Avoid empty layers and a public `pkg` tree for private server code.
 
 ## Boundaries as features arrive
 
 - HTTP handlers translate requests and responses; they do not absorb all logic.
-- A NewsBlur client will own upstream HTTP behavior and response types.
-- Session code will own authentication material and expiry, with isolated tests.
-- The frontend will own layout and local interaction state; server data remains
+- The NewsBlur client owns upstream HTTP behavior and response types.
+- Session code owns authentication material and expiry; full-flow tests are pending.
+- The frontend owns layout and local interaction state; server data remains
   authoritative and failures must be visible to the reader.
 
 Create an interface at a real consumer boundary when needed. Do not require

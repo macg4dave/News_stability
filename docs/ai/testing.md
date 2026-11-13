@@ -31,6 +31,8 @@ docker compose -f compose.yaml -f compose.test.yaml --profile test run --build -
 docker compose -f compose.yaml -f compose.test.yaml --profile test down
 ```
 
-The integration suite uses a mock upstream. Never use real login credentials,
+The Compose integration suite uses an unreachable synthetic origin and checks
+static/proxy/unauthenticated boundaries. Authenticated behavior belongs in Go TLS
+mock-upstream tests; those new full-flow cases remain pending. Never use real login credentials,
 subscriptions, read state, or briefings as routine fixtures. Documentation-only
 changes require link/command consistency review, not new tests mirroring prose.

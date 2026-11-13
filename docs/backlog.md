@@ -6,12 +6,12 @@ Move delivered work out of the active list and update the roadmap.
 
 | ID | Priority | Milestone | Work item and acceptance | Depends on |
 | --- | --- | --- | --- | --- |
-| P01 | P0 | M1 | Choose frontend approach; document build/debug flow and one accessible reading-layout prototype | Product scope; no framework installed yet |
-| P02 | P0 | M1 | Inventory installed NewsBlur API, including briefing routes; record response contracts with synthetic fixtures | B02, B03 |
-| P03 | P0 | M1 | Thin Go upstream client with context, timeouts, bounded bodies, status handling, safe redirects, and transport tests | P02 |
-| P04 | P0 | M1 | Session/login/logout and CSRF design; test expiry, invalid login, and secure cookie behavior; remove superseded development passthrough paths | P02, P03 |
-| P05 | P0 | M2 | Folders/feeds and unread counts; useful loading, empty, offline, and session-expired states | P01, P04 |
-| P06 | P0 | M2 | Story list pagination and article view; maintained HTML sanitizer, safe links, and hostile-markup tests | P05 |
+| P01 | P0 | M1 | Source implemented: native JavaScript/CSS reader layout and [build/debug flow](frontend.md); browser/accessibility review pending | Browser review |
+| P02 | P0 | M1 | In progress: HTTPS origin and public briefing calls identified; finish installed API/version inventory and synthetic response fixtures ([evidence](newsblur-contract.md)) | B02, B03 |
+| P03 | P0 | M1 | Transport wired into reader source, including CSRF bootstrap and private CA roots; candidate feed/story adapters added; combined test pass and installed acceptance pending | P02 |
+| P04 | P0 | M1 | [Session/login/logout and CSRF source](sessions.md) implemented; passthrough removed; expiry, invalid login, secure cookies, and full-flow tests pending | P02, P03 |
+| P05 | P0 | M2 | Source implemented: folders/feeds and unread counts with loading, empty, offline, and session-expired UI; combined tests/acceptance pending | P01, P04 |
+| P06 | P0 | M2 | Source implemented: story pagination, article view, maintained sanitizer, safe links; hostile-markup, pagination, and browser tests pending | P05 |
 | P07 | P0 | M2 | Read/unread and saved-story actions; rollback/report upstream failure and avoid automatic write retries | P06 |
 | P08 | P1 | M3 | Daily Briefing view, availability detection, source-story navigation, and pending/error/unsupported states | P02, P06 |
 | P09 | P1 | M4 | Keyboard navigation, mobile layouts, visible focus, semantic controls, and light/dark themes | M2 |

@@ -3,10 +3,17 @@ package httpserver
 
 import "net/http"
 
-// NewHandler returns the reader routes without contacting NewsBlur.
-func NewHandler() http.Handler {
+// NewHandler returns the reader routes. A nil Auth exposes health only.
+func NewHandler(auth *Auth) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", health)
+	if auth != nil {
+		mux.HandleFunc("GET /api/session", auth.status)
+		mux.HandleFunc("POST /api/login", auth.login)
+		mux.HandleFunc("POST /api/logout", auth.logout)
+		mux.HandleFunc("GET /api/feeds", auth.feeds)
+		mux.HandleFunc("GET /api/feeds/{id}/stories", auth.stories)
+	}
 	return mux
 }
 

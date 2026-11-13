@@ -13,7 +13,7 @@ References: [API](https://www.newsblur.com/api),
   availability, settings, responses, and generation state before implementing it.
   Explain an unavailable feature clearly; never silently generate our own result.
 - Keep origin configurable (`NEWSBLUR_ORIGIN`); never accept an arbitrary upstream
-  URL from a browser request. Default is `http://news101.lan`.
+  URL from a browser request. Default is `https://news101.lan`.
 - Isolate NewsBlur transport and response adaptation from HTTP handlers as those
   capabilities are implemented. Preserve upstream semantics unless a documented
   reader contract intentionally changes them.

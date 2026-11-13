@@ -4,6 +4,10 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy no-referrer always;
+
     location = /healthz {
         access_log off;
         default_type text/plain;
@@ -18,23 +22,16 @@ server {
         proxy_read_timeout 5s;
     }
 
-    # Temporary development passthrough; reader API adapters will live in Go.
-    # Strip the local prefix; preserve the NewsBlur endpoint and query string.
-    location /newsblur/ {
+    # Explicit Go reader endpoints own upstream credentials and session cookies.
+    location /api/ {
+        access_log off;
+        client_max_body_size 16k;
         resolver 127.0.0.11 valid=30s ipv6=off;
-        set $newsblur_origin ${NEWSBLUR_ORIGIN};
-        rewrite ^/newsblur/(.*)$ /$1 break;
-        proxy_pass $newsblur_origin;
+        set $reader_origin http://app:8090;
+        proxy_pass $reader_origin$request_uri;
         proxy_http_version 1.1;
-        proxy_set_header Host $proxy_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cookie_domain ~.* $host;
-        proxy_cookie_path / /newsblur/;
-        proxy_redirect ${NEWSBLUR_ORIGIN}/ /newsblur/;
         proxy_connect_timeout 5s;
-        proxy_read_timeout 30s;
+        proxy_read_timeout 35s;
     }
 
     location / {

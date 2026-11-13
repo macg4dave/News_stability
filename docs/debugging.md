@@ -9,7 +9,7 @@ go run ./cmd/reader
 ```
 
 Open http://127.0.0.1:8090/healthz for `{"status":"ok"}`. This starts the Go
-service only, not the Nginx/static page or NewsBlur proxy. Press Ctrl+C to drain
+service only, not the Nginx/static page. Press Ctrl+C to drain
 requests and stop. The Go process uses `HTTP_ADDR` from the environment, defaulting
 to `127.0.0.1:8090`; it does not load `.env`. Compose alone reads `.env`.
 
@@ -72,9 +72,11 @@ NewsBlur is reachable or a session is authenticated. A Go change needs a rebuild
 `docker compose up --build -d app web`. Static `web/` edits are mounted directly.
 
 If Docker reports a missing `dockerDesktopLinuxEngine` pipe, start Docker Desktop
-in Linux-container mode and check `docker version`. If the NewsBlur proxy returns
-502, inspect Nginx logs and confirm container DNS and connectivity to
-`news101.lan`. Verify `NEWSBLUR_ORIGIN` and its protocol before debugging UI code.
+in Linux-container mode and check `docker version`. If a reader API returns 502, verify the Go `NEWSBLUR_ORIGIN`,
+container DNS/connectivity, and `NEWSBLUR_CA_FILE` trust configuration. Go now owns
+the upstream HTTPS connection; Nginx no longer forwards directly to NewsBlur.
+Use the exact `PUBLIC_ORIGIN` in the browser for login/logout Origin checks.
+Do not export request traces with credentials or cookies.
 If Nginx health works but `/api/healthz` fails, inspect `docker compose ps app`
 and the app logs. Stop the stack with `docker compose down`.
 

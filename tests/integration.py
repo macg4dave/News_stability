@@ -1,37 +1,53 @@
+"""Reader proxy boundaries; this stack never contacts the LAN NewsBlur server."""
 import http.cookiejar
 import json
 import os
 import unittest
+import urllib.error
 import urllib.request
 
 
-class ProxyTests(unittest.TestCase):
+class ReaderTests(unittest.TestCase):
     def setUp(self):
         self.base = os.environ["TEST_BASE_URL"]
         self.jar = http.cookiejar.CookieJar()
         self.client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar))
 
-    def test_static_page_and_health(self):
+    def test_static_page_health_and_security_headers(self):
         with self.client.open(self.base + "/") as response:
             self.assertIn(b"News Stability", response.read())
+            self.assertIn("frame-ancestors 'none'", response.headers["Content-Security-Policy"])
+            self.assertEqual(response.headers["Referrer-Policy"], "no-referrer")
+        for path in ("/reader.js", "/reader.css"):
+            with self.client.open(self.base + path) as response:
+                self.assertEqual(response.status, 200)
         with self.client.open(self.base + "/healthz") as response:
             self.assertEqual(response.read(), b"ok\n")
         with self.client.open(self.base + "/api/healthz") as response:
             self.assertEqual(json.load(response), {"status": "ok"})
 
-    def test_proxy_preserves_path_query_body_and_session(self):
-        data = b"username=fixture&password=synthetic"
-        with self.client.open(self.base + "/newsblur/api/login", data=data) as response:
-            payload = json.load(response)
-        self.assertEqual(payload, {"path": "/api/login", "body": data.decode()})
+    def test_session_and_csrf_boundary(self):
+        with self.client.open(self.base + "/api/session") as response:
+            session = json.load(response)
+            self.assertFalse(session["authenticated"])
+            self.assertTrue(session["csrf_token"])
+            self.assertEqual(response.headers["Cache-Control"], "no-store")
+            self.assertIn("HttpOnly", response.headers["Set-Cookie"])
+            self.assertIn("SameSite=Strict", response.headers["Set-Cookie"])
         self.assertEqual(len(self.jar), 1)
-        self.assertEqual(next(iter(self.jar)).path, "/newsblur/")
-        # A fully qualified test hostname exercises real domain-cookie behavior.
-        self.assertEqual(next(iter(self.jar)).domain.lstrip("."), "reader.test")
-        with self.client.open(self.base + "/newsblur/reader/feeds?flat=true") as response:
-            payload = json.load(response)
-        self.assertEqual(payload["path"], "/reader/feeds?flat=true")
-        self.assertEqual(payload["cookie"], "newsblur_sessionid=fixture")
+        request = urllib.request.Request(self.base + "/api/login", data=b'{}', headers={
+            "Content-Type": "application/json", "Origin": "http://localhost",
+        })
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            self.client.open(request)
+        self.assertEqual(caught.exception.code, 403)
+        self.assertEqual(json.load(caught.exception)["code"], "csrf_rejected")
+
+    def test_unauthenticated_reads_and_removed_passthrough(self):
+        for path, status in (("/api/feeds", 401), ("/api/feeds/1/stories", 401), ("/newsblur/api/login", 404)):
+            with self.assertRaises(urllib.error.HTTPError) as caught:
+                self.client.open(self.base + path)
+            self.assertEqual(caught.exception.code, status)
 
 
 if __name__ == "__main__":

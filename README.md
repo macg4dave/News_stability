@@ -5,14 +5,18 @@ A focused web reader for an existing self-hosted **NewsBlur** server at
 NewsBlur remains responsible for feeds, stories, intelligence, and Daily Briefing
 generation. We present those capabilities through a simpler reading interface.
 
-Current status: working Go health service, development page/proxy, Docker setup,
-debug configurations, tests, and focused AI rules. Login, the reader UI, and
-Daily Briefing presentation are planned. No frontend framework is installed yet.
+Current source includes login/logout, server-side sessions, CSRF checks, nested
+feed navigation, paginated stories, and sanitized article presentation. The new
+flow compiles but its combined tests and installed-server acceptance remain
+pending. The frontend uses native JavaScript/CSS, with no frontend build step.
+Read/unread, save/unsave, and Daily Briefing views remain planned.
 
 ## Documentation
 
 - [Architecture and project layout](docs/architecture.md)
 - [Development and configuration](docs/development.md)
+- [Frontend source and build/debug flow](docs/frontend.md)
+- [Session design](docs/sessions.md)
 - [Debugging: Go, VS Code, Docker](docs/debugging.md)
 - [Roadmap and milestone acceptance](docs/roadmap.md)
 - [Blockers and unverified dependencies](docs/blockers.md)
@@ -21,7 +25,7 @@ Daily Briefing presentation are planned. No frontend framework is installed yet.
 
 ## Native Go development
 
-Requires Go 1.26 or newer. No third-party Go dependencies are currently needed.
+Requires Go 1.26 or newer. Go modules include the maintained bluemonday HTML sanitizer.
 
 ```sh
 go run ./cmd/reader
@@ -43,10 +47,11 @@ docker compose up --build -d web
 In PowerShell, use `Copy-Item .env.example .env` for the copy step.
 Open http://localhost:8080. Compose starts both Nginx and the Go app.
 Files in `web/` are mounted for immediate editing.
-Set `WEB_PORT` or `NEWSBLUR_ORIGIN` in `.env` as needed, then recreate the service.
-Use an origin without a trailing slash, for example `http://news101.lan` or
-`https://news101.lan`. The container must be able to resolve and reach that host.
-Nginx uses Docker DNS to resolve the upstream at request time.
+Set `WEB_PORT`, `PUBLIC_ORIGIN`, and `NEWSBLUR_ORIGIN` in `.env` as needed, then rebuild.
+Use an origin without a trailing slash, for example `https://news101.lan`.
+The container must be able to resolve and reach that host.
+Go owns the HTTPS upstream connection. See [CA configuration](docs/development.md)
+if the server uses a private certificate authority.
 
 ```sh
 docker compose logs -f app web
@@ -68,15 +73,16 @@ docker compose -f compose.yaml -f compose.test.yaml --profile test run --build -
 docker compose -f compose.yaml -f compose.test.yaml --profile test down
 ```
 
-The integration test starts Nginx, the Go service, and a mock NewsBlur upstream;
-it does not access `news101.lan` or require credentials. Linux CI also runs
+The integration stack starts Nginx and Go with an unreachable synthetic upstream;
+it checks static/proxy/unauthenticated boundaries without accessing `news101.lan`
+or requiring credentials. The new complete authentication/reading test pass remains pending. Linux CI also runs
 `go test -race ./...`. See [verification rules](docs/ai/testing.md) for details.
 
 ## Early development references
 
 - [NewsBlur API](https://www.newsblur.com/api)
 - [NewsBlur source](https://github.com/samuelclay/newsblur)
-- [Local NewsBlur](http://news101.lan)
+- [Local NewsBlur](https://news101.lan)
 - [Development and integration notes](docs/development.md)
 - [AI contributor instructions](AGENTS.md)
 

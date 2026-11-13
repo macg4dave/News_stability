@@ -1,16 +1,10 @@
 services:
-  mock-newsblur:
-    image: python:3.13-alpine
-    profiles: [test]
-    working_dir: /workspace
-    volumes:
-      - ./tests:/workspace:ro
-    command: python -B mock_newsblur.py
-    healthcheck:
-      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
-      interval: 2s
-      timeout: 2s
-      retries: 15
+  app:
+    environment:
+      PUBLIC_ORIGIN: http://localhost
+      # Integration must never use the LAN server. Authenticated checks belong
+      # in TLS httptest fixtures; this stack covers browser/proxy boundaries.
+      NEWSBLUR_ORIGIN: https://unreachable.invalid
 
   web-test:
     build: .
@@ -18,12 +12,8 @@ services:
     networks:
       default:
         aliases: [reader.test]
-    environment:
-      NEWSBLUR_ORIGIN: http://mock-newsblur:8000
     depends_on:
       app:
-        condition: service_healthy
-      mock-newsblur:
         condition: service_healthy
 
   integration:

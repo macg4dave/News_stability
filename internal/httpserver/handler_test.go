@@ -9,7 +9,7 @@ import (
 )
 
 func TestRoutes(t *testing.T) {
-	handler := httpserver.NewHandler()
+	handler := httpserver.NewHandler(nil)
 	for _, tc := range []struct {
 		method string
 		path   string

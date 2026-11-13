@@ -4,12 +4,17 @@ package config
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"strconv"
+	"strings"
 )
 
 // Config contains settings used by the reader process.
 type Config struct {
-	HTTPAddr string
+	HTTPAddr       string
+	PublicOrigin   string
+	NewsBlurOrigin string
+	NewsBlurCAFile string
 }
 
 // Load reads environment settings through getenv, leaving process state untouched.
@@ -26,5 +31,29 @@ func Load(getenv func(string) string) (Config, error) {
 	if err != nil || number < 1 || number > 65535 {
 		return Config{}, fmt.Errorf("HTTP_ADDR port must be an integer between 1 and 65535")
 	}
-	return Config{HTTPAddr: addr}, nil
+	publicOrigin := getenv("PUBLIC_ORIGIN")
+	if publicOrigin == "" {
+		publicOrigin = "http://localhost:8080"
+	}
+	u, err := url.Parse(publicOrigin)
+	if err != nil || u.Hostname() == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.Opaque != "" || strings.Contains(publicOrigin, "#") {
+		return Config{}, fmt.Errorf("PUBLIC_ORIGIN must be an HTTP(S) origin without credentials, path, query, or fragment")
+	}
+	if port := u.Port(); port != "" {
+		number, err := strconv.Atoi(port)
+		if err != nil || number < 1 || number > 65535 {
+			return Config{}, fmt.Errorf("PUBLIC_ORIGIN port must be between 1 and 65535")
+		}
+	}
+	if u.Scheme != "https" {
+		ip := net.ParseIP(u.Hostname())
+		if u.Scheme != "http" || (u.Hostname() != "localhost" && (ip == nil || !ip.IsLoopback())) {
+			return Config{}, fmt.Errorf("PUBLIC_ORIGIN requires HTTPS except on loopback")
+		}
+	}
+	origin := getenv("NEWSBLUR_ORIGIN")
+	if origin == "" {
+		origin = "https://news101.lan"
+	}
+	return Config{HTTPAddr: addr, PublicOrigin: publicOrigin, NewsBlurOrigin: origin, NewsBlurCAFile: getenv("NEWSBLUR_CA_FILE")}, nil
 }
