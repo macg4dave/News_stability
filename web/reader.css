@@ -54,6 +54,8 @@ input { min-width:0; width:100%; padding:.7rem; border:1px solid var(--line); ba
 .story strong { display:block; font:600 1rem/1.4 system-ui,sans-serif; }
 .story small { display:block; color:var(--muted); margin-top:.5rem; }
 .story.read strong { font-weight:400; }
+.read-dot { display:inline-block; width:.5rem; height:.5rem; margin-inline-end:.6rem; border:1.5px solid var(--accent); border-radius:50%; background:var(--accent); vertical-align:.1em; }
+.story.read .read-dot { background:transparent; border-color:var(--muted); }
 .story[aria-current="true"] { background:var(--wash); box-shadow:inset 3px 0 var(--accent); }
 .layout-control { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem; padding:.8rem 1.2rem; border-bottom:1px solid var(--line); font-size:.85rem; }
 .story-list { container-type:inline-size; }
@@ -104,7 +106,6 @@ input { min-width:0; width:100%; padding:.7rem; border:1px solid var(--line); ba
 .reader[data-layout="list"] .stories > li > .article { padding:1.5rem clamp(1.2rem,3vw,3rem); border-left:3px solid var(--accent); }
 .article h1 { font-size:clamp(1.8rem,3vw,2.8rem); }
 .article-content { font:1.12rem/1.85 Georgia,serif; margin-top:2rem; }
-.story-actions { display:flex; gap:.7rem; flex-wrap:wrap; margin-bottom:1rem; }
 .story-filters { display:grid; gap:.4rem; padding:1rem 1.2rem; border-bottom:1px solid var(--line); font-size:.85rem; }
 .story-filters p { margin:0; }
 .article-content h1,.article-content h2,.article-content h3 { font-family:system-ui,sans-serif; line-height:1.4; margin-top:1.5em; }

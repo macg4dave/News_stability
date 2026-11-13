@@ -17,6 +17,7 @@ func NewHandler(auth *Auth) http.Handler {
 		mux.HandleFunc("GET /api/briefing", auth.briefing)
 		mux.HandleFunc("GET /api/stories/{hash}", auth.linkedStory)
 		mux.HandleFunc("GET /api/stories/{hash}/text", auth.fullText)
+		mux.HandleFunc("GET /api/newsblur-picture", auth.picture)
 		mux.HandleFunc("POST /api/stories/{hash}/state", auth.storyState)
 	}
 	return mux

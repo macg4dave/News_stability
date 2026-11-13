@@ -57,3 +57,10 @@ The common story adapter was checked against
 It supplies `image_urls`, `secure_image_urls`, and epoch-seconds
 `story_timestamp` (currently a string). We adapt fields rather than copying
 implementation. Installed-version behavior still needs separate acceptance.
+
+The image update also checks `secure_image_thumbnails` and the signed imageproxy
+format in [NewsBlur's signer](https://github.com/samuelclay/NewsBlur/blob/1b8fb1ace4d20f1e750b3bbdfb6f127d6a0d74d9/utils/story_functions.py#L665).
+The [Docker settings](https://github.com/samuelclay/NewsBlur/blob/1b8fb1ace4d20f1e750b3bbdfb6f127d6a0d74d9/newsblur_web/docker_local_settings.py#L38)
+set `IMAGES_URL = "/imageproxy"`; rejecting all relative image URLs lost those
+signed replacements. The reader now adapts this contract with original relay
+code. No NewsBlur source was copied and no HMAC secret is obtained or generated.

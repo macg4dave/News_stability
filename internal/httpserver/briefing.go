@@ -36,7 +36,7 @@ func (a *Auth) briefing(w http.ResponseWriter, r *http.Request) {
 		Preview     bool          `json:"preview"`
 		Page        int           `json:"page"`
 		CanContinue bool          `json:"can_continue"`
-	}{a.presentStories(result.Stories), result.State, result.Preview, result.Page, result.HasNext})
+	}{a.presentStories(result.Stories, e.Client), result.State, result.Preview, result.Page, result.HasNext})
 }
 
 func (a *Auth) linkedStory(w http.ResponseWriter, r *http.Request) {
@@ -53,5 +53,5 @@ func (a *Auth) linkedStory(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusUnauthorized, "session_expired", "Your session expired. Sign in again.")
 		return
 	}
-	writeJSON(w, http.StatusOK, a.presentStories([]newsblur.Story{s})[0])
+	writeJSON(w, http.StatusOK, a.presentStories([]newsblur.Story{s}, e.Client)[0])
 }

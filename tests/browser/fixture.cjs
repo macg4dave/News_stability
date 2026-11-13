@@ -3,7 +3,7 @@ const { expect } = require("@playwright/test");
 const story = (hash = "1:abc", title = "Synthetic story") => ({ hash, title, html: "<p>Readable article text.</p>", excerpt: "Readable article text.", url: "https://example.invalid/story", read: false, saved: false, related: [], links: [], reading_minutes: 1 });
 
 async function fixture(page, baseURL = "http://127.0.0.1:4173/") {
-  const model = { authenticated: false, failAction: false, failRead: false, expired: false, actions: [], reads: [], pages: {}, hasMore: false, failMore: false, textRequests: [], failText: false, fullTexts: {}, stories: [story(), story("1:def", "Second synthetic story")] };
+  const model = { authenticated: false, failAction: false, failRead: false, expired: false, actions: [], actionRequests: [], reads: [], pages: {}, hasMore: false, failMore: false, textRequests: [], failText: false, fullTexts: {}, stories: [story(), story("1:def", "Second synthetic story")] };
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const path = decodeURIComponent(url.pathname);
@@ -22,7 +22,9 @@ async function fixture(page, baseURL = "http://127.0.0.1:4173/") {
       return reply({ hash, html: model.fullTexts[hash] ?? source.html, reading_minutes: 3, links: source.links, picture: source.picture });
     }
     if (path.endsWith("/state")) {
-      model.actions.push(route.request().postDataJSON().action);
+      const action = route.request().postDataJSON().action;
+      model.actions.push(action);
+      model.actionRequests.push({ hash: path.split("/")[3], action });
       if (model.failAction) return reply({ code: "action_rejected", message: "NewsBlur could not apply that action." }, 409);
       return reply({ action: model.actions.at(-1) });
     }

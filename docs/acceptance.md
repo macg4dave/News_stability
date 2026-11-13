@@ -9,7 +9,7 @@ installed check below. Keep credentials and private stories out of this document
 
 Latest local run: **13 November 2026, working-tree build** on Windows with
 Docker Linux containers. Go formatting/vet/tests/build and Linux race tests
-passed; **41 Chromium tests**, one static security test and **four isolated
+passed; **57 Chromium tests**, one static security test and **four isolated
 integration tests** passed. The 36-image gallery was generated and all three
 desktop layouts were visually inspected in light/dark/paper, with phone article
 samples also reviewed. All local documentation links resolve.
@@ -19,6 +19,10 @@ The default preview was rebuilt and both services report healthy at
 notice bundle match the source; the served preview bundle matches too. No
 installed-account checks were performed. CI now includes the visual gallery
 artifact and packaging audit; the remote CI run itself is not claimed here.
+The latest image/dot update adds confirmed filled/hollow indicators, relative
+NewsBlur proxy/thumbnail handling, safe fallback candidates and lazy/relative HTML
+images. Go fixtures check authentication, upstream cookies, raster types, byte
+limits, redirect rejection, signed path validation and sanitized presentation.
 
 Follow [the testing rules](ai/testing.md). Run Go formatting, vet, tests and build,
 the Linux race-test image, Chromium tests, Python security tests, Compose config
@@ -60,11 +64,18 @@ an ordinary account. The operator supplies or authorizes that environment.
   empty/hidden batches, long feeds, offline/resume and a failed continuation.
   Watch responsiveness and memory; there is no DOM virtualization or offline DB.
 - Open and return from stories. List expands in place; Cards/Magazine focus the
-  article. Selection, filters, focus and position must survive. Read/save writes
-  must match NewsBlur, including failure and session expiry.
+  article. Selection, filters, focus and position must survive. Read writes and
+  saved metadata must match NewsBlur, including failure and session expiry. The current UI uses
+  automatic read writes when scrolling past seen stories or to an article's end;
+  read/save buttons are removed. Confirm that unseen stories, opening/navigation,
+  hidden tabs and offline browsing do not write, and failures pause until Refresh.
 - Check lead/inline pictures, signed replacements, expired URLs, blocked hosts,
   and Pictures hidden. HTTP-only images without a secure replacement remain
   unavailable. Normal external image requests follow browser cookie settings.
+  Verify the installed `/imageproxy` route and signing format, List thumbnails,
+  full-image layout changes and fallbacks. The relay supports PNG/JPEG/GIF/WebP/AVIF;
+  active SVG and unexpected responses are rejected. Confirm private-CA handling
+  in Go, no upstream cookies in responses and no image requests when hidden.
 - Verify full text against supported publishers and unavailable/paywalled
   examples. A failure keeps the feed content and original link. Record extraction
   limitations; the reader cannot supply text NewsBlur cannot extract.

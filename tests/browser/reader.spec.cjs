@@ -5,17 +5,20 @@ const { fixture, story } = require("./fixture.cjs");
 async function openStory(page) {
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await page.getByRole("button", { name: "Synthetic story", exact: false }).first().click();
-  await expect(page.locator("#article-content")).toContainText("Readable article text.");
+  await expect(page.locator("#article-title")).toHaveText("Synthetic story");
+  await expect(page.locator("#article-content")).toBeVisible();
 }
 
-test("read, save and logout", async ({ page }) => {
+test("scrolling through an article marks it read and logout clears content", async ({ page }) => {
   const model = await fixture(page);
+  model.fullTexts["1:abc"] = "<p>A long synthetic article for scrolling.</p>".repeat(60);
   await openStory(page);
-  await page.getByRole("button", { name: "Mark read", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Mark unread", exact: true })).toBeEnabled();
-  await page.getByRole("button", { name: "Save story", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Unsave story", exact: true })).toBeEnabled();
-  expect(model.actions).toEqual(["read", "save"]);
+  await expect(page.locator("#full-text-status")).toHaveText("Full text from NewsBlur.");
+  await expect(page.getByRole("button", { name: /^(Mark read|Mark unread|Save story|Unsave story)$/ })).toHaveCount(0);
+  expect(model.actions).toEqual([]);
+  await page.mouse.wheel(0, 20000);
+  await expect(page.locator('#stories .story').first()).toHaveClass(/read/);
+  expect(model.actions).toEqual(["read"]);
   await page.getByRole("button", { name: "Back to stories", exact: true }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.locator("#reader")).toBeHidden();
@@ -24,15 +27,28 @@ test("read, save and logout", async ({ page }) => {
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([]);
 });
 
-test("failed writes preserve story and state without retries", async ({ page }) => {
+test("failed automatic read keeps unread state and pauses until refresh", async ({ page }) => {
   const model = await fixture(page);
-  await openStory(page);
+  model.fullTexts["1:abc"] = "<p>A long synthetic article for scrolling.</p>".repeat(60);
   model.failAction = true;
-  await page.getByRole("button", { name: "Mark read", exact: true }).click();
-  await expect(page.locator("#article-status")).toContainText("could not apply");
-  await expect(page.getByRole("button", { name: "Mark read", exact: true })).toBeEnabled();
+  await openStory(page);
+  await expect(page.locator("#full-text-status")).toHaveText("Full text from NewsBlur.");
+  await page.mouse.wheel(0, 20000);
+  await expect(page.locator("#notice")).toContainText("Could not mark stories read");
+  await expect(page.locator("#stories .story").first()).not.toHaveClass(/read/);
   await expect(page.locator("#article-title")).toHaveText("Synthetic story");
+  await page.mouse.wheel(0, -500);
+  await page.mouse.wheel(0, 500);
   expect(model.actions).toEqual(["read"]);
+  model.failAction = false;
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect.poll(() => model.reads.length).toBe(2);
+  await expect(page.locator("#stories")).toHaveAttribute("aria-busy", "false");
+  await expect(page.locator("#full-text-status")).toHaveText("Full text from NewsBlur.");
+  await expect(page.locator("#story-status")).toHaveText("2 stories");
+  await page.mouse.wheel(0, 20000);
+  await expect(page.locator("#stories .story").first()).toHaveClass(/read/);
+  expect(model.actions).toEqual(["read", "read"]);
 });
 
 test("search and unread filters use NewsBlur and persist across pagination", async ({ page }) => {
@@ -121,8 +137,8 @@ test("refresh reloads authoritative story state and preserves collapsed folders"
   model.stories[0].read = true;
   model.stories[0].saved = true;
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Mark unread", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Unsave story", exact: true })).toBeVisible();
+  await expect(page.locator("#article-meta")).toContainText("Read");
+  await expect(page.locator("#article-meta")).toContainText("Saved");
   await expect(page.locator("#feed-tree details")).not.toHaveAttribute("open", "");
 });
 
@@ -161,8 +177,7 @@ test("layouts preserve stories, selection, filters and request state", async ({ 
   expect(model.reads).toHaveLength(reads);
   expect(model.actions).toEqual([]);
   await page.locator("#stories .story").first().click();
-  await page.getByRole("button", { name: "Save story", exact: true }).click();
-  await expect(page.locator('#stories .story[aria-current="true"]')).toContainText("Saved");
+  await expect(page.getByRole("button", { name: "Save story", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Back to stories", exact: true }).click();
   await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
   await page.reload();
@@ -342,17 +357,17 @@ test("failed and unsafe pictures retain readable stories without credentialed re
 test("opening a story loads full text and preserves explicit story state", async ({ page }) => {
   const model = await fixture(page);
   model.fullTexts["1:abc"] = "<p>Complete article beyond the short feed preview.</p>";
+  model.stories[0].saved = true;
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await page.locator("#stories .story").first().click();
   await expect(page.locator("#article-content")).toContainText("Complete article beyond");
   await expect(page.locator("#full-text-status")).toHaveText("Full text from NewsBlur.");
-  await page.getByRole("button", { name: "Save story", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Unsave story", exact: true })).toBeVisible();
+  await expect(page.locator("#article-meta")).toContainText("Saved");
   await page.getByRole("button", { name: "Back to stories", exact: true }).click();
   await page.locator("#stories .story").first().click();
   await expect(page.locator("#article-content")).toContainText("Complete article beyond");
   expect(model.textRequests).toEqual(["1:abc"]);
-  expect(model.actions).toEqual(["save"]);
+  expect(model.actions).toEqual([]);
 });
 
 test("unavailable full text keeps feed text and the original link", async ({ page }) => {
@@ -435,8 +450,7 @@ for (const width of [1440, 900, 390]) {
     const article = await page.locator("#article").boundingBox();
     const following = await next.boundingBox();
     expect(following.y).toBeGreaterThanOrEqual(article.y + article.height - 1);
-    await page.getByRole("button", { name: "Save story", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Unsave story", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save story", exact: true })).toHaveCount(0);
     await expect(row.locator("#article")).toBeVisible();
     await expect(page.locator("#article")).toHaveCount(1);
     await page.getByLabel("Story layout", { exact: true }).selectOption("cards");
@@ -446,7 +460,7 @@ for (const width of [1440, 900, 390]) {
     // the existing control to verify the transition back without losing state.
     await page.locator("#story-layout").selectOption("list", { force: true });
     await expect(row.locator("#article")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Unsave story", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save story", exact: true })).toHaveCount(0);
     await next.locator(".story").click();
     await expect(next.locator("#article")).toBeVisible();
     await expect(row.locator(".story")).toHaveAttribute("aria-expanded", "false");
@@ -460,7 +474,7 @@ for (const width of [1440, 900, 390]) {
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(page.locator("#article-content")).toBeEmpty();
     await expect(page.locator("#reader")).toBeHidden();
-    expect(model.actions).toEqual(["save"]);
+    expect(model.actions).toEqual([]);
   });
 }
 
@@ -496,7 +510,7 @@ test("loading more preserves inline article DOM, focus and scroll with one reque
   });
   await page.getByLabel("Story layout", { exact: true }).selectOption("list");
   await openStory(page);
-  await page.locator("#toggle-save").focus();
+  await page.locator("#back-to-stories").focus();
   await page.evaluate(() => { window.originalArticle = document.querySelector("#article"); window.originalRow = document.querySelector("#stories > li"); });
   await page.locator("#stream-footer").scrollIntoViewIfNeeded();
   await expect.poll(() => calls).toBe(1);
@@ -506,7 +520,7 @@ test("loading more preserves inline article DOM, focus and scroll with one reque
   await expect(page.locator("#stories > li")).toHaveCount(31);
   expect(calls).toBe(1);
   expect(await page.evaluate(() => document.querySelector("#article") === window.originalArticle && document.querySelector("#stories > li") === window.originalRow)).toBe(true);
-  await expect(page.locator("#toggle-save")).toBeFocused();
+  await expect(page.locator("#back-to-stories")).toBeFocused();
   expect(Math.abs(await page.evaluate(() => scrollY) - position)).toBeLessThan(3);
 });
 
@@ -666,4 +680,210 @@ test("large text and reduced motion retain reading and dialog controls on a phon
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Close story", exact: true }).click();
   await expect(page.locator("#stories .story").first()).toBeFocused();
+});
+
+for (const layout of ["cards", "magazine", "list"]) {
+  test(`${layout}: scrolling past seen stories confirms read without removing rows`, async ({ page }) => {
+    const model = await fixture(page);
+    model.stories = Array.from({ length: 30 }, (_, i) => story(`1:scroll${i}`, `Scroll story ${i}`));
+    await page.getByLabel("Story layout", { exact: true }).selectOption(layout);
+    await page.getByRole("button", { name: "Synthetic feed" }).click();
+    await expect(page.locator("#stories .story")).toHaveCount(30);
+    await page.locator("#stories .story").first().scrollIntoViewIfNeeded();
+    await page.locator("#stories .story").first().evaluate(node => { window.firstRow = node; });
+    expect(model.actions).toEqual([]);
+    await page.mouse.move(900, 400);
+    await page.mouse.wheel(0, 1200);
+    await expect(page.locator("#stories .story").first()).toHaveClass(/read/);
+    await expect(page.locator("#stories .story")).toHaveCount(30);
+    expect(await page.locator("#stories .story").first().evaluate(node => node === window.firstRow)).toBe(true);
+    expect(model.actionRequests).toContainEqual({ hash: "1:scroll0", action: "read" });
+    expect(model.actions.every(action => action === "read")).toBe(true);
+    expect(new Set(model.actionRequests.map(item => item.hash)).size).toBe(model.actions.length);
+    expect(model.actionRequests.some(item => item.hash === "1:scroll29")).toBe(false);
+  });
+}
+
+test("automatic read pauses offline and in hidden tabs, and skips briefing summaries", async ({ page, context }) => {
+  const model = await fixture(page);
+  model.stories = Array.from({ length: 30 }, (_, i) => ({ ...story(`1:pause${i}`, `Pause story ${i}`), ...(i === 0 ? { kind: "briefing_summary" } : {}) }));
+  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await page.locator("#stories .story").first().scrollIntoViewIfNeeded();
+  await context.setOffline(true);
+  await page.mouse.wheel(0, 500);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(0);
+  expect(model.actions).toEqual([]);
+  await context.setOffline(false);
+  await page.evaluate(() => { Object.defineProperty(document, "hidden", { configurable: true, value: true }); document.dispatchEvent(new Event("visibilitychange")); });
+  const before = await page.evaluate(() => scrollY);
+  await page.mouse.wheel(0, 500);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(before);
+  expect(model.actions).toEqual([]);
+  await page.evaluate(() => { delete document.hidden; document.dispatchEvent(new Event("visibilitychange")); window.scrollTo(0, 0); });
+  await page.locator("#stories .story").first().scrollIntoViewIfNeeded();
+  await page.mouse.wheel(0, 1000);
+  await expect.poll(() => model.actions.length).toBeGreaterThan(0);
+  expect(model.actionRequests.some(item => item.hash === "1:pause0")).toBe(false);
+});
+
+test("scroll read serializes writes and rejects a late confirmation after logout", async ({ page }) => {
+  const model = await fixture(page);
+  model.stories = Array.from({ length: 30 }, (_, i) => story(`1:queue${i}`, `Queue story ${i}`));
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  let calls = 0;
+  await page.route("**/api/stories/*/state", async route => {
+    calls++;
+    await gate;
+    await route.fulfill({ contentType: "application/json", body: '{"action":"read"}' }).catch(() => {});
+  });
+  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await page.locator("#stories .story").first().scrollIntoViewIfNeeded();
+  await page.mouse.wheel(0, 1200);
+  await expect.poll(() => calls).toBe(1);
+  await expect(page.locator("#stories .story").first()).not.toHaveClass(/read/);
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  release();
+  await expect(page.locator("#stories")).toBeEmpty();
+  await expect(page.locator("#reader")).toBeHidden();
+  expect(calls).toBe(1);
+});
+
+test("keyboard scrolling marks passed stories read without saving them", async ({ page }) => {
+  const model = await fixture(page);
+  model.stories = Array.from({ length: 30 }, (_, i) => story(`1:keyboard${i}`, `Keyboard story ${i}`));
+  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await page.locator("#stories .story").first().focus();
+  await page.keyboard.press("End");
+  await expect(page.locator("#stories .story").first()).toHaveClass(/read/);
+  expect(model.actions.every(action => action === "read")).toBe(true);
+});
+
+test("session expiry during automatic read clears account content", async ({ page }) => {
+  const model = await fixture(page);
+  model.fullTexts["1:abc"] = "<p>A long synthetic article for scrolling.</p>".repeat(60);
+  await openStory(page);
+  await expect(page.locator("#full-text-status")).toHaveText("Full text from NewsBlur.");
+  model.expired = true;
+  await page.mouse.wheel(0, 20000);
+  await expect(page.locator("#reader")).toBeHidden();
+  await expect(page.locator("#stories")).toBeEmpty();
+  await expect(page.locator("#article-content")).toBeEmpty();
+  await expect(page.locator("#login-status")).toContainText("expired");
+});
+
+test("unread continuation restarts its scan after read writes without replacing loaded rows", async ({ page }) => {
+  const model = await fixture(page);
+  model.stories = Array.from({ length: 30 }, (_, i) => story(`1:unread${i}`, `Unread story ${i}`));
+  model.hasMore = true;
+  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await page.getByLabel("Show", { exact: true }).selectOption("unread");
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect.poll(() => model.reads.length).toBe(2);
+  await expect(page.locator("#stories")).toHaveAttribute("aria-busy", "false");
+  await page.locator("#stories .story").first().scrollIntoViewIfNeeded();
+  await page.locator("#stories .story").first().evaluate(node => { window.unreadRow = node; });
+  await page.mouse.wheel(0, 1000);
+  await expect(page.locator("#stories .story").first()).toHaveClass(/read/);
+  model.pages[1] = { page: 1, can_continue: false, stories: [story("1:shifted", "Previously shifted unread story")] };
+  await page.locator("#stream-footer").scrollIntoViewIfNeeded();
+  await expect(page.locator('#stories .story[data-hash="1:shifted"]')).toBeVisible();
+  expect(model.reads.at(-1).get("page")).toBe("1");
+  expect(model.reads.at(-1).get("read_filter")).toBe("unread");
+  expect(await page.locator("#stories .story").first().evaluate(node => node === window.unreadRow)).toBe(true);
+  await expect(page.locator("#stories .story")).toHaveCount(31);
+});
+
+test("a downward scroll gesture marks a fully visible short article read", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1600 });
+  const model = await fixture(page);
+  await openStory(page);
+  await expect(page.locator("#full-text-status")).toHaveText("Full text from NewsBlur.");
+  expect(model.actions).toEqual([]);
+  await page.mouse.wheel(0, 500);
+  await expect(page.locator("#stories .story").first()).toHaveClass(/read/);
+  expect(model.actions).toEqual(["read"]);
+});
+
+for (const layout of ["cards", "magazine", "list"]) {
+  test(`${layout}: unread dot becomes hollow only after confirmed read`, async ({ page }) => {
+    const model = await fixture(page);
+    model.stories[1].read = true;
+    model.fullTexts["1:abc"] = "<p>A long synthetic article.</p>".repeat(60);
+    await page.getByLabel("Story layout", { exact: true }).selectOption(layout);
+    await page.getByRole("button", { name: "Synthetic feed" }).click();
+    const dot = page.locator("#stories .story").first().locator(".read-dot");
+    await expect(dot).toHaveAttribute("title", "Unread");
+    expect(await dot.evaluate(node => getComputedStyle(node).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+    expect(await page.locator("#stories .story").nth(1).locator(".read-dot").evaluate(node => getComputedStyle(node).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+    await page.locator("#stories .story").first().click();
+    await expect(page.locator("#full-text-status")).toHaveText("Full text from NewsBlur.");
+    await page.mouse.wheel(0, 20000);
+    await expect(dot).toHaveAttribute("title", "Read");
+    expect(await dot.evaluate(node => getComputedStyle(node).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+  });
+}
+
+const signedImagePath = "/imageproxy/sc,s" + "A".repeat(43) + "=/http://publisher.invalid/photo.png";
+const relayPicture = path => "/api/newsblur-picture?" + new URLSearchParams({ path });
+
+test("List uses NewsBlur thumbnails and switches to the full image for Cards", async ({ page }) => {
+  const model = await fixture(page);
+  model.stories[0].pictures = [relayPicture(signedImagePath)];
+  model.stories[0].thumbnail = relayPicture(signedImagePath.replace("/sc,", "/192,sc,"));
+  const paths = [];
+  await page.route("**/api/newsblur-picture?**", route => {
+    paths.push(new URL(route.request().url()).searchParams.get("path"));
+    return route.fulfill({ contentType: "image/png", body: pixelPNG });
+  });
+  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  const image = page.locator("#stories .story-picture img");
+  await expect.poll(() => image.evaluate(node => node.naturalWidth)).toBeGreaterThan(0);
+  expect(paths).toEqual([signedImagePath.replace("/sc,", "/192,sc,")]);
+  await page.getByLabel("Story layout", { exact: true }).selectOption("cards");
+  await expect.poll(() => paths.length).toBe(2);
+  expect(paths[1]).toBe(signedImagePath);
+  await expect(image).toHaveAttribute("src", /api\/newsblur-picture/);
+});
+
+test("failed NewsBlur image falls back to a validated original without looping", async ({ page }) => {
+  const model = await fixture(page);
+  const original = "https://publisher.invalid/photo.png";
+  model.stories[0].pictures = [relayPicture(signedImagePath), original, "https://publisher.invalid/unused.png"];
+  const requests = [];
+  await page.route("**/api/newsblur-picture?**", route => { requests.push("newsblur"); return route.fulfill({ status: 404, body: "Unavailable" }); });
+  await page.route("https://publisher.invalid/**", route => { requests.push(route.request().url()); return route.fulfill({ contentType: "image/png", body: pixelPNG }); });
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  const image = page.locator("#stories .story-picture img");
+  await expect.poll(() => image.evaluate(node => node.complete && node.naturalWidth > 0)).toBe(true);
+  expect(requests).toEqual(["newsblur", original]);
+  await expect(page.locator("#stories .picture-fallback")).toBeHidden();
+});
+
+test("inline NewsBlur images retain alt text and use a safe original fallback", async ({ page }) => {
+  const model = await fixture(page);
+  model.stories[0].html = `<p>Readable article text.</p><img data-picture-src="${relayPicture(signedImagePath)}" data-picture-fallback="https://publisher.invalid/original.png" alt="Coastal scene">`;
+  await page.route("**/api/newsblur-picture?**", route => route.fulfill({ status: 404, body: "Unavailable" }));
+  await page.route("https://publisher.invalid/**", route => route.fulfill({ contentType: "image/png", body: pixelPNG }));
+  await openStory(page);
+  const image = page.locator("#article-content img");
+  await expect.poll(() => image.evaluate(node => node.complete && node.naturalWidth > 0)).toBe(true);
+  await expect(image).toHaveAttribute("alt", "Coastal scene");
+  await expect(image).toHaveAttribute("src", "https://publisher.invalid/original.png");
+});
+
+test("hidden pictures suppress NewsBlur relay requests too", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("news-stability-pictures-v1", "hide"));
+  const model = await fixture(page);
+  model.stories[0].pictures = [relayPicture(signedImagePath)];
+  let requests = 0;
+  await page.route("**/api/newsblur-picture?**", route => { requests++; return route.fulfill({ contentType: "image/png", body: pixelPNG }); });
+  await openStory(page);
+  await expect(page.locator("#article-content img")).not.toHaveAttribute("src");
+  expect(requests).toBe(0);
 });

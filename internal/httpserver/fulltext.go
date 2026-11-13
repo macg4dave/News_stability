@@ -30,7 +30,7 @@ func (a *Auth) fullText(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusUnauthorized, "session_expired", "Your session expired. Sign in again.")
 		return
 	}
-	presented := a.presentStories([]newsblur.Story{story})[0]
+	presented := a.presentStories([]newsblur.Story{story}, e.Client)[0]
 	if presented.Excerpt == "" {
 		apiError(w, http.StatusNotFound, "full_text_unavailable", "Full text is unavailable from NewsBlur.")
 		return
@@ -41,5 +41,6 @@ func (a *Auth) fullText(w http.ResponseWriter, r *http.Request) {
 		ReadingMinutes int      `json:"reading_minutes"`
 		Links          []string `json:"links"`
 		Picture        string   `json:"picture,omitempty"`
-	}{presented.Hash, presented.HTML, presented.ReadingMinutes, presented.Links, presented.Picture})
+		Pictures       []string `json:"pictures,omitempty"`
+	}{presented.Hash, presented.HTML, presented.ReadingMinutes, presented.Links, presented.Picture, presented.Pictures})
 }

@@ -4,17 +4,21 @@ const storageKey = "news-stability-pictures-v1";
 
 function safePictureURL(value) {
   try {
-    const url = new URL(value);
+    const url = new URL(value, location.origin);
+    if (url.origin === location.origin && !url.username && !url.password && url.pathname === "/api/newsblur-picture" && !url.hash && [...url.searchParams].length === 1 && url.searchParams.get("path")?.startsWith("/imageproxy/")) return url.href;
     if (url.protocol === "https:" && !url.username && !url.password && url.origin !== location.origin) return url.href;
   } catch { /* Invalid image metadata leaves a text-only story. */ }
   return "";
 }
 
-export function createPicture(value, alt = "", thumbnail = false) {
-  const url = safePictureURL(value);
+export function createPicture(value, alt = "", thumbnail = false, small = "") {
+  const candidates = [...new Set((Array.isArray(value) ? value : [value]).map(safePictureURL).filter(Boolean))].slice(0, 6);
+  const url = candidates[0];
   if (!url) return null;
   const image = document.createElement("img");
   image.dataset.pictureSrc = url;
+  image.dataset.pictureCandidates = JSON.stringify(candidates);
+  if (safePictureURL(small)) image.dataset.thumbnailSrc = safePictureURL(small);
   image.alt = alt;
   return pictureFrame(image, thumbnail);
 }
@@ -41,8 +45,12 @@ export function initializePictures() {
 
   function refresh() {
     for (const image of reader.querySelectorAll("img[data-picture-src]")) {
-      const url = safePictureURL(image.dataset.pictureSrc);
-      if (!url) { image.remove(); continue; }
+      let values;
+      try { values = JSON.parse(image.dataset.pictureCandidates || "null"); } catch { values = null; }
+      if (!Array.isArray(values)) values = [image.dataset.pictureSrc, image.dataset.pictureFallback];
+      if (reader.dataset.layout === "list" && image.dataset.thumbnailSrc) values = [image.dataset.thumbnailSrc, ...values];
+      const candidates = [...new Set(values.map(safePictureURL).filter(Boolean))].slice(0, 6);
+      if (!candidates.length) { image.remove(); continue; }
       if (!image.parentElement.classList.contains("picture-frame")) {
         const placeholder = document.createTextNode("");
         image.replaceWith(placeholder);
@@ -51,6 +59,15 @@ export function initializePictures() {
       const frame = image.parentElement;
       const visible = control.value === "show";
       frame.hidden = !visible;
+      const selection = JSON.stringify(candidates);
+      if (image.dataset.selection !== selection) {
+        image.dataset.selection = selection;
+        image.dataset.candidateIndex = "0";
+        delete image.dataset.failed;
+        image.hidden = false;
+        frame.querySelector(".picture-fallback").hidden = true;
+        image.removeAttribute("src");
+      }
       if (!prepared.has(image)) {
         prepared.add(image);
         // Ordinary image display does not require CORS permission. Keep URLs
@@ -61,13 +78,20 @@ export function initializePictures() {
         image.decoding = "async";
         image.addEventListener("error", () => {
           if (!image.hasAttribute("src")) return;
+          const sources = JSON.parse(image.dataset.selection);
+          const next = Number(image.dataset.candidateIndex) + 1;
+          if (control.value === "show" && next < sources.length) {
+            image.dataset.candidateIndex = String(next);
+            image.src = sources[next];
+            return;
+          }
           image.dataset.failed = "true";
           image.hidden = true;
           frame.querySelector(".picture-fallback").hidden = false;
         });
       }
       if (!visible) image.removeAttribute("src");
-      else if (!image.dataset.failed && !image.hasAttribute("src")) image.src = url;
+      else if (!image.dataset.failed && !image.hasAttribute("src")) image.src = candidates[Number(image.dataset.candidateIndex) || 0];
     }
   }
 

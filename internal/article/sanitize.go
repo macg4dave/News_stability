@@ -36,7 +36,12 @@ func (s *Sanitizer) HTML(untrusted string) string {
 // HTMLWithPictures uses NewsBlur-supplied HTTPS image replacements before
 // deferring image loading. Replacement URLs pass the same image URL validation.
 func (s *Sanitizer) HTMLWithPictures(untrusted string, sources map[string]string) string {
-	return deferPictures(s.policy.Sanitize(untrusted), sources)
+	return s.HTMLWithPictureBase(untrusted, sources, "")
+}
+
+// HTMLWithPictureBase resolves publisher-relative pictures before sanitization.
+func (s *Sanitizer) HTMLWithPictureBase(untrusted string, sources map[string]string, baseURL string) string {
+	return deferPictures(s.policy.Sanitize(preparePictures(untrusted, baseURL, sources)), sources)
 }
 
 // SafeURL allows only absolute HTTP(S) article links with no embedded credentials.

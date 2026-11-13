@@ -20,6 +20,7 @@ type Story struct {
 	Content        string            `json:"-"`
 	Pictures       []string          `json:"-"`
 	PictureSources map[string]string `json:"-"`
+	Thumbnails     map[string]string `json:"-"`
 	Read           bool              `json:"read"`
 	Saved          bool              `json:"starred"`
 	FeedID         int               `json:"-"`

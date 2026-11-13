@@ -47,15 +47,26 @@ with the collection and expanded article. Reference assets are not distributed.
 - [x] Responsive card grid, bounded excerpts, useful text-only cards and shared actions.
 - [x] Adapt NewsBlur image metadata and signed replacements; fall back to sanitized
   inline pictures without publisher scraping or an arbitrary image proxy.
-- [x] Allow only validated HTTPS images, preserve safe alt text, reserve space,
+- [x] Allow validated external HTTPS images and the constrained NewsBlur relay,
+  preserve safe alt text, reserve space,
   lazy-load/decode and cap collection pictures at half the viewport height.
 - [x] Normal browser image requests, no referrer or unnecessary CORS requirement;
-  reject reader-origin image URLs and retain text when pictures fail.
+  reject reader-origin image URLs except the authenticated picture endpoint.
+  Retain text when pictures fail.
 - [x] Appearance ? Pictures hides images and suppresses their requests across views.
 
 Installed-host compatibility remains a release gate. HTTP-only pictures without
 secure replacements, blocked hosts and expired signed URLs may be unavailable.
 External requests expose the browser IP and follow its external-site cookie policy.
+
+Latest image update: support NewsBlur Docker's signed relative `/imageproxy`
+paths and full/thumbnail metadata. A fixed-origin authenticated relay serves
+bounded raster images, with no redirects, arbitrary destinations, forwarded
+cookies or browser caching. List prefers small thumbnails; Cards/reader use full
+images. Failed lead pictures try at most six distinct validated candidates;
+inline proxy failures can fall back to their HTTPS original. Common lazy-image
+attributes and publisher-relative paths are normalized before sanitization.
+Filled unread dots become hollow only on confirmed read updates, across all views.
 
 ## 4. Magazine and article presentation ? complete
 
@@ -75,6 +86,15 @@ External requests expose the browser IP and follow its external-site cookie poli
   No local extraction, persistent article cache, or unsupported summary actions.
 
 ## 5. Reading polish and continuous scrolling ? complete locally
+
+Latest user-requested change: automatic mark-read while scrolling replaces the
+manual read/save buttons. A story must have been visible and then scrolled past;
+opened articles are marked at their end. Keyboard scrolling is supported.
+Navigation/layout changes never write. Writes are serialized, confirmed before
+updating existing rows, and paused after failure until Refresh. Offline/background
+browsing and briefing summaries are excluded. Existing NewsBlur saves remain
+readable through Saved stories. This supersedes the original explicit-action UI.
+
 
 - [x] Shared folders, filters, saved/briefing scopes, related coverage, source links,
   appearance controls and keyboard help across all layouts.
@@ -127,5 +147,5 @@ Reader BSD-3-Clause requirements. No source/assets from either were copied.
 After release, consider per-feed layouts, density controls and presentation of
 verified NewsBlur intelligence explanations. Bulk catch-up needs verified write
 semantics, explicit scope, confirmation and genuine undo. Mosaic, local ranking,
-feed fetching, regex search, automatic mark-on-scroll, offline article caching
+feed fetching, regex search, offline article caching
 and local briefing generation are outside this three-view release.

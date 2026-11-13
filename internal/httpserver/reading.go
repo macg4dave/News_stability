@@ -91,7 +91,7 @@ func (a *Auth) stories(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusUnauthorized, "session_expired", "Your session expired. Sign in again.")
 		return
 	}
-	items := a.presentStories(result.Stories)
+	items := a.presentStories(result.Stories, e.Client)
 	writeJSON(w, http.StatusOK, struct {
 		Stories     []readerStory `json:"stories"`
 		Page        int           `json:"page"`
@@ -122,7 +122,7 @@ func (a *Auth) savedStories(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusUnauthorized, "session_expired", "Your session expired. Sign in again.")
 		return
 	}
-	items := a.presentStories(result.Stories)
+	items := a.presentStories(result.Stories, e.Client)
 	writeJSON(w, http.StatusOK, struct {
 		Stories     []readerStory `json:"stories"`
 		Page        int           `json:"page"`
@@ -142,6 +142,8 @@ type readerStory struct {
 	HTML           string                  `json:"html"`
 	Excerpt        string                  `json:"excerpt"`
 	Picture        string                  `json:"picture,omitempty"`
+	Pictures       []string                `json:"pictures,omitempty"`
+	Thumbnail      string                  `json:"thumbnail,omitempty"`
 	Read           bool                    `json:"read"`
 	Saved          bool                    `json:"saved"`
 	ReadingMinutes int                     `json:"reading_minutes"`
@@ -152,15 +154,28 @@ type readerStory struct {
 	Links          []string                `json:"links"`
 }
 
-func (a *Auth) presentStories(stories []newsblur.Story) []readerStory {
+func (a *Auth) presentStories(stories []newsblur.Story, client *newsblur.Client) []readerStory {
 	result := make([]readerStory, 0, len(stories))
 	for _, s := range stories {
-		safeHTML := a.article.HTMLWithPictures(s.Content, s.PictureSources)
+		sources := make(map[string]string, len(s.PictureSources))
+		for original, replacement := range s.PictureSources {
+			sources[original] = imageURL(client, replacement)
+		}
+		safeHTML := a.article.HTMLWithPictureBase(s.Content, sources, s.URL)
+		candidates := make([]string, 0, len(s.Pictures))
+		thumbnail := ""
+		for _, value := range s.Pictures {
+			candidates = append(candidates, imageURL(client, value))
+			if thumbnail == "" {
+				thumbnail = article.PictureURL(imageURL(client, s.Thumbnails[value]))
+			}
+		}
+		pictures := article.PictureCandidates(candidates, safeHTML)
 		related := s.Related
 		if related == nil {
 			related = []newsblur.RelatedStory{}
 		}
-		result = append(result, readerStory{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, PublishedAt: s.PublishedAt, URL: article.SafeURL(s.URL), HTML: safeHTML, Excerpt: article.Excerpt(safeHTML), Picture: article.FirstPicture(s.Pictures, safeHTML), Read: s.Read, Saved: s.Saved, ReadingMinutes: article.ReadingMinutes(safeHTML), FeedID: s.FeedID, FeedTitle: s.FeedTitle, Kind: s.Kind, Related: related, Links: article.Links(safeHTML)})
+		result = append(result, readerStory{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, PublishedAt: s.PublishedAt, URL: article.SafeURL(s.URL), HTML: safeHTML, Excerpt: article.Excerpt(safeHTML), Picture: article.FirstPicture(candidates, safeHTML), Pictures: pictures, Thumbnail: thumbnail, Read: s.Read, Saved: s.Saved, ReadingMinutes: article.ReadingMinutes(safeHTML), FeedID: s.FeedID, FeedTitle: s.FeedTitle, Kind: s.Kind, Related: related, Links: article.Links(safeHTML)})
 	}
 	return result
 }

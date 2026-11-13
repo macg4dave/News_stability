@@ -17,6 +17,7 @@ type wireStory struct {
 	Content      string            `json:"story_content"`
 	ImageURLs    []string          `json:"image_urls"`
 	SecureImages map[string]string `json:"secure_image_urls"`
+	Thumbnails   map[string]string `json:"secure_image_thumbnails"`
 	Read         int               `json:"read_status"`
 	Saved        bool              `json:"starred"`
 	FeedID       int               `json:"story_feed_id"`
@@ -60,7 +61,7 @@ func (s wireStory) story() (Story, error) {
 	if seconds, err := s.Timestamp.Float64(); err == nil && seconds > 0 && seconds < 253402300800 {
 		publishedAt = time.Unix(int64(seconds), 0).UTC().Format(time.RFC3339)
 	}
-	return Story{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, PublishedAt: publishedAt, URL: s.URL, Content: s.Content, Pictures: pictures, PictureSources: s.SecureImages, Read: s.Read == 1, Saved: s.Saved, FeedID: s.FeedID, FeedTitle: s.FeedTitle, Related: related}, nil
+	return Story{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, PublishedAt: publishedAt, URL: s.URL, Content: s.Content, Pictures: pictures, PictureSources: s.SecureImages, Thumbnails: s.Thumbnails, Read: s.Read == 1, Saved: s.Saved, FeedID: s.FeedID, FeedTitle: s.FeedTitle, Related: related}, nil
 }
 
 func decodeStoryPage(body []byte, page int) (StoryPage, error) {

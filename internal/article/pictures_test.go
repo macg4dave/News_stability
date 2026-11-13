@@ -44,3 +44,33 @@ func TestInlinePicturesUseNewsBlurReplacements(t *testing.T) {
 		t.Fatal("unsafe replacement must retain a valid original")
 	}
 }
+
+func TestLazyAndRelativePicturesArePreparedBeforeSanitizing(t *testing.T) {
+	output := New().HTMLWithPictureBase(`<img src="data:image/gif;base64,AAAA" data-src="/photos/main.jpg" onerror="bad()" srcset="https://tracker.invalid/pixel 2x"><img data-original="//cdn.invalid/second.jpg"><img data-lazy-src="javascript:bad()" src="https://publisher.invalid/valid.jpg">`, nil, "https://publisher.invalid/stories/example")
+	for _, source := range []string{"https://publisher.invalid/photos/main.jpg", "https://cdn.invalid/second.jpg", "https://publisher.invalid/valid.jpg"} {
+		if !strings.Contains(output, `data-picture-src="`+source+`"`) {
+			t.Errorf("missing recovered picture %s", source)
+		}
+	}
+	for _, forbidden := range []string{"onerror", "srcset", "data-original", "data-lazy-src", "javascript:", "data:image", " src="} {
+		if strings.Contains(output, forbidden) {
+			t.Errorf("unsafe attribute retained: %s", forbidden)
+		}
+	}
+}
+
+func TestPictureFallbacksAreSafeAndBounded(t *testing.T) {
+	relay := "/api/newsblur-picture?path=%2Fimageproxy%2Fsynthetic"
+	output := New().HTMLWithPictures(`<img src="https://publisher.invalid/photo.jpg">`, map[string]string{"https://publisher.invalid/photo.jpg": relay})
+	if values := PictureCandidates(nil, output); len(values) != 2 || values[1] != "https://publisher.invalid/photo.jpg" {
+		t.Fatal("inline-only lead picture lost its original fallback")
+	}
+	if !strings.Contains(output, `data-picture-src="`+relay+`"`) || !strings.Contains(output, `data-picture-fallback="https://publisher.invalid/photo.jpg"`) {
+		t.Fatal("safe relay fallback missing")
+	}
+	candidates := []string{"javascript:bad()", "/api/session", relay, relay, "https://images.invalid/1", "https://images.invalid/2", "https://images.invalid/3", "https://images.invalid/4", "https://images.invalid/5", "https://images.invalid/6"}
+	values := PictureCandidates(candidates, output)
+	if len(values) != 6 || values[0] != relay || values[5] != "https://images.invalid/5" {
+		t.Fatalf("unbounded or unsafe fallback candidates: %v", values)
+	}
+}

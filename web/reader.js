@@ -3,16 +3,18 @@ import { initializeAppearance } from "./appearance.js";
 import { getRelationBuckets, pageRelations } from "./relations.js";
 import { initializeLayout } from "./layout.js";
 import { createPicture, initializePictures } from "./pictures.js";
+import { initializeScrollRead } from "./scroll-read.js";
 import { initializeInfiniteScroll } from "./infinite.js";
 import { publicationDate, dayKey, dayLabel, timeElement } from "./dates.js";
 
 const el = (id) => document.getElementById(id);
 const articlePanel = el("article");
-const state = { session: null, feeds: new Map(), folders: [], feed: null, view: "feed", page: 1, canContinue: false, moreError: false, emptyPages: 0, stories: [], story: null, originStory: null, readingPosition: null, selected: null, actionPending: false, resume: null, expiryTimer: null, epoch: 0, feedRequest: null, storyRequest: null, articleRequest: null };
+const state = { session: null, feeds: new Map(), folders: [], feed: null, view: "feed", page: 1, readRevision: 0, pageRevision: 0, canContinue: false, moreError: false, emptyPages: 0, stories: [], story: null, originStory: null, readingPosition: null, selected: null, resume: null, expiryTimer: null, epoch: 0, feedRequest: null, storyRequest: null, articleRequest: null };
 initializeAppearance();
 initializeLayout();
 const refreshPictures = initializePictures();
 el("reader").addEventListener("layoutchange", () => {
+  resetScrollRead();
   placeArticle();
   if (el("reader").classList.contains("article-open")) {
     if (el("reader").dataset.layout === "list") el("article-title").scrollIntoView({ block: "nearest", behavior: "instant" });
@@ -57,6 +59,11 @@ function notice(text) {
 
 function cancelReading() {
   state.epoch++;
+  resetScrollRead();
+  readController?.abort();
+  readQueue.length = 0;
+  readAttempts.clear();
+  autoReadPaused = false;
   state.feedRequest?.abort();
   state.storyRequest?.abort();
   state.articleRequest?.abort();
@@ -319,7 +326,6 @@ function clearArticle() {
   state.selected = null;
   state.originStory = null;
   el("back-to-stories").hidden = true;
-  renderActions();
   message("article-title", "A little space for the stories that matter.");
   message("article-feed", "SETTLE IN");
   message("article-meta", "Choose a story to start reading.");
@@ -335,7 +341,7 @@ function clearArticle() {
 function renderStoryMeta(target, story) {
   const readingTime = story.reading_minutes > 0 ? `About ${story.reading_minutes} min read` : "";
   const date = publicationDate(story);
-  const parts = [story.kind === "briefing_summary" ? "NewsBlur summary" : "", story.feed_title, story.author, date ? timeElement(date) : story.date, readingTime, story.read ? "Read" : "", story.saved ? "Saved" : ""].filter(Boolean);
+  const parts = [story.kind === "briefing_summary" ? "NewsBlur summary" : "", story.feed_title, story.author, date ? timeElement(date) : story.date, readingTime, story.read ? "Read" : "Unread", story.saved ? "Saved" : ""].filter(Boolean);
   target.replaceChildren();
   for (const part of parts) {
     if (target.childNodes.length) target.append(" · ");
@@ -344,6 +350,7 @@ function renderStoryMeta(target, story) {
 }
 
 function selectStory(story, preserveOrigin = false) {
+  resetScrollRead();
   if (!el("reader").classList.contains("article-open")) {
     state.readingPosition = { x: window.scrollX, y: window.scrollY };
   }
@@ -355,7 +362,6 @@ function selectStory(story, preserveOrigin = false) {
   if (!preserveOrigin && state.stories.some((item) => item.hash === story.hash)) state.originStory = story.hash;
   placeArticle();
   el("back-to-stories").hidden = !state.originStory;
-  renderActions();
   message("article-title", story.title || "Untitled story");
   message("article-feed", story.feed_title || state.feeds.get(story.feed_id)?.title || state.feed?.title || "NewsBlur");
   renderStoryMeta(el("article-meta"), story);
@@ -383,7 +389,7 @@ function renderArticleContent(story) {
   el("article-content").innerHTML = story.html;
   if (!story.html) message("article-content", "This story has no article text. You can read it on the original site.");
   if (!el("article-content").querySelector("img[data-picture-src]")) {
-    const lead = createPicture(story.picture);
+    const lead = createPicture(story.pictures?.length ? story.pictures : story.picture);
     if (lead) el("article-content").prepend(lead);
   }
   refreshPictures();
@@ -404,7 +410,7 @@ async function loadFullText(story) {
     if (epoch !== state.epoch || controller.signal.aborted || state.selected !== story) return;
     if (text.hash !== story.hash || typeof text.html !== "string") throw new Error("Unexpected full-text response.");
     // Only replace content fields: read/saved state may have changed in flight.
-    Object.assign(story, { html: text.html, reading_minutes: text.reading_minutes, links: text.links, picture: text.picture || story.picture, fullTextLoaded: true });
+    Object.assign(story, { html: text.html, reading_minutes: text.reading_minutes, links: text.links, picture: text.picture || story.picture, pictures: text.pictures?.length ? text.pictures : story.pictures, fullTextLoaded: true });
     renderArticleContent(story);
     renderStoryMeta(el("article-meta"), story);
     renderConnections(story);
@@ -416,53 +422,91 @@ async function loadFullText(story) {
   }
 }
 
-function renderActions() {
-  const story = state.selected;
-  el("story-actions").hidden = !story || story.kind === "briefing_summary";
-  el("toggle-read").textContent = story?.read ? "Mark unread" : "Mark read";
-  el("toggle-save").textContent = story?.saved ? "Unsave story" : "Save story";
-  el("toggle-read").disabled = state.actionPending;
-  el("toggle-save").disabled = state.actionPending;
+// Writes are serialized and deduplicated. UI state changes only on confirmation;
+// rows and the inline article remain in place, including in the unread filter.
+const readQueue = [];
+const readAttempts = new Set();
+let readController = null;
+let drainingReads = false;
+let autoReadPaused = false;
+
+function queueRead(story) {
+  if (!state.session?.authenticated || autoReadPaused || story.read || story.kind === "briefing_summary" || readAttempts.has(story.hash)) return;
+  readAttempts.add(story.hash);
+  readQueue.push({ story, epoch: state.epoch });
+  drainReads();
 }
 
-async function changeStoryState(field) {
-  const story = state.selected;
-  if (!story || state.actionPending) return;
+async function drainReads() {
+  if (drainingReads) return;
+  drainingReads = true;
+  let changed = false;
   const epoch = state.epoch;
-  const value = !story[field];
-  const action = field === "read" ? (value ? "read" : "unread") : (value ? "save" : "unsave");
-  state.actionPending = true;
-  renderActions();
-  message("article-status", "Saving change to NewsBlur...");
-  el("article-status").hidden = false;
   try {
-    await api(`/api/stories/${encodeURIComponent(story.hash)}/state`, { method: "POST", body: JSON.stringify({ action }) });
-    if (epoch !== state.epoch) return;
-    // Update only after confirmation. Navigation may have changed during the write.
-    story[field] = value;
-    for (const item of state.stories) if (item.hash === story.hash) item[field] = value;
-    if (state.selected?.hash === story.hash) {
-      state.selected[field] = value;
-      renderStoryMeta(el("article-meta"), state.selected);
-      message("article-status", "Change saved to NewsBlur.");
-      el("article-status").hidden = false;
-    }
-    renderStories();
-    if (field === "read") await loadFeeds();
-  } catch (error) {
-    if (epoch === state.epoch) {
-      el("article-status").hidden = false;
-      await readingError(error, "article-status");
+    while (readQueue.length) {
+      if (document.hidden || !navigator.onLine) {
+        for (const item of readQueue) readAttempts.delete(item.story.hash);
+        readQueue.length = 0;
+        break;
+      }
+      const item = readQueue.shift();
+      if (item.epoch !== state.epoch || item.story.read) continue;
+      readController = new AbortController();
+      try {
+        await api(`/api/stories/${encodeURIComponent(item.story.hash)}/state`, { method: "POST", body: JSON.stringify({ action: "read" }), signal: readController.signal });
+        if (item.epoch !== state.epoch) continue;
+        item.story.read = true;
+        for (const story of state.stories) {
+          if (story.hash !== item.story.hash) continue;
+          story.read = true;
+          state.readRevision++;
+        }
+        if (state.selected?.hash === item.story.hash) {
+          state.selected.read = true;
+          renderStoryMeta(el("article-meta"), state.selected);
+        }
+        for (const button of el("stories").querySelectorAll(".story")) {
+          if (button.dataset.hash !== item.story.hash) continue;
+          button.classList.add("read");
+          const dot = button.querySelector(".read-dot");
+          if (dot) dot.title = "Read";
+          renderStoryMeta(button.querySelector("small"), item.story);
+        }
+        changed = true;
+      } catch (error) {
+        if (item.epoch !== state.epoch) continue;
+        autoReadPaused = true;
+        readQueue.length = 0;
+        notice("Could not mark stories read. They remain unread. Refresh to try again.");
+        await readingError(error, "notice");
+        if (state.session?.authenticated) message("notice", "Could not mark stories read. They remain unread. Refresh to try again.", true);
+      }
     }
   } finally {
-    state.actionPending = false;
-    renderActions();
+    drainingReads = false;
+    readController = null;
   }
+  if (changed && epoch === state.epoch && state.session?.authenticated) await loadFeeds();
 }
 
-el("toggle-read").addEventListener("click", () => changeStoryState("read"));
-el("toggle-save").addEventListener("click", () => changeStoryState("saved"));
+const resetScrollRead = initializeScrollRead(() => {
+  if (!state.session?.authenticated) return [];
+  const open = el("reader").classList.contains("article-open");
+  const candidates = [];
+  if (!open || el("reader").dataset.layout === "list") {
+    const stories = new Map(state.stories.map(story => [story.hash, story]));
+    for (const node of el("stories").querySelectorAll(".story")) {
+      if (open && node.dataset.hash === state.originStory) continue;
+      const story = stories.get(node.dataset.hash);
+      if (story && !story.read && story.kind !== "briefing_summary") candidates.push({ node, story });
+    }
+  }
+  if (open && state.selected) candidates.push({ node: articlePanel, story: state.selected, article: true });
+  return candidates;
+}, queueRead);
+
 function returnToStories() {
+  resetScrollRead();
   el("reader").classList.remove("article-open");
   placeArticle();
   const origin = [...el("stories").querySelectorAll(".story")].find((button) => button.dataset.hash === state.originStory);
@@ -515,11 +559,16 @@ function renderStories(items = state.stories, append = false) {
     button.className = `story${story.read ? " read" : ""}`;
     button.dataset.hash = story.hash;
     button.setAttribute("aria-current", String(story.hash === state.story));
-    const picture = createPicture(story.picture, "", true);
+    const picture = createPicture(story.pictures?.length ? story.pictures : story.picture, "", true, story.thumbnail);
     if (picture) button.append(picture);
     const title = document.createElement("strong");
     title.dir = "auto";
     title.textContent = story.title || "Untitled story";
+    const dot = document.createElement("span");
+    dot.className = "read-dot";
+    dot.title = story.read ? "Read" : "Unread";
+    dot.setAttribute("aria-hidden", "true");
+    title.prepend(dot);
     const meta = document.createElement("small");
     renderStoryMeta(meta, story);
     button.append(title, meta);
@@ -616,6 +665,7 @@ async function loadLinkedStory(reference) {
 
 async function loadReadingPage(selection) {
   const { kind, feed, page, append = false } = selection;
+  if (!append) resetScrollRead();
   const sameFeed = kind === "feed" && state.view === "feed" && feed?.id === state.feed?.id;
   const filter = selection.filter ?? (sameFeed ? state.filter || "all" : "all");
   const query = selection.query ?? (sameFeed ? state.query || "" : "");
@@ -623,6 +673,7 @@ async function loadReadingPage(selection) {
   const controller = new AbortController();
   state.storyRequest = controller;
   const epoch = state.epoch;
+  const readRevision = state.readRevision;
   el("stories").setAttribute("aria-busy", "true");
   el("load-more").disabled = true;
   const title = kind === "briefing" ? "Daily Briefing" : kind === "saved" ? "Saved stories" : feed.title;
@@ -636,6 +687,7 @@ async function loadReadingPage(selection) {
     state.feed = feed || null;
     state.view = kind;
     state.page = page;
+    state.pageRevision = readRevision;
     state.filter = filter;
     state.query = query;
     el("story-filters").hidden = kind !== "feed";
@@ -658,13 +710,19 @@ async function loadReadingPage(selection) {
       if (selected) selectStory(selected);
       else clearArticle();
     }
-    if (!append) renderFeeds();
+    if (!append) {
+      if (autoReadPaused) notice("");
+      autoReadPaused = false;
+      if (!drainingReads) readAttempts.clear();
+      renderFeeds();
+    }
     if (!append) {
       el("collection-updated").replaceChildren("Last refreshed ", timeElement(new Date()));
       el("collection-updated").hidden = false;
     }
     message("stories-heading", title);
     renderStories(append ? fresh : state.stories, append);
+    if (!append) resetScrollRead();
     const briefingStates = {
       unsupported: "Daily Briefing is not available on this NewsBlur server.",
       disabled: "Daily Briefing is turned off in NewsBlur. Enable it there to receive summaries.",
@@ -700,7 +758,11 @@ function loadMoreStories(automatic = false) {
   if (!state.session?.authenticated || !state.canContinue || state.storyRequest) return;
   if (automatic && (state.moreError || state.emptyPages >= 3)) return;
   if (!automatic) state.emptyPages = 0;
-  return loadReadingPage({ kind: state.view, feed: state.feed, page: state.page + 1, append: true });
+  // Read writes can shift the offsets of NewsBlur's unread-only result set.
+  // Restart its scan and deduplicate against loaded rows instead of skipping
+  // stories. A write during the request leaves the revisions different again.
+  const rebase = state.view === "feed" && state.filter === "unread" && state.pageRevision !== state.readRevision;
+  return loadReadingPage({ kind: state.view, feed: state.feed, page: rebase ? 1 : state.page + 1, append: true });
 }
 
 const scheduleMore = initializeInfiniteScroll(el("stream-footer"), () => loadMoreStories(true));

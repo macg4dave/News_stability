@@ -6,7 +6,7 @@ NewsBlur remains responsible for feeds, stories, intelligence, and Daily Briefin
 generation. We present those capabilities through a simpler reading interface.
 
 The reader includes login/logout, server-side sessions, nested feeds, continuously loaded
-sanitized articles, explicit read/unread and save/unsave, saved stories, feed
+sanitized articles, automatic mark-read while scrolling, saved stories, feed
 search/unread filtering, themes and keyboard navigation. Daily Briefing presents
 NewsBlur summaries and source stories. Native/race, synthetic TLS, browser smoke,
 and isolated proxy checks cover these flows; installed acceptance remains open.
@@ -14,10 +14,18 @@ The frontend uses native JavaScript/CSS with no bundling step.
 
 Cards and Magazine display lead pictures, and the article reader supports inline
 pictures. Use Appearance → Pictures to hide them across the reader. Images load
-over HTTPS as normal browser image requests without a referrer; CORS permission
-is not required. NewsBlur's signed image URLs are used for inline pictures when
-provided. External-site cookies follow your browser's settings.
-Unavailable images show a placeholder; List shows small thumbnails beside headlines.
+through NewsBlur's signed image proxy when supplied, with direct HTTPS originals
+and other supplied images as bounded fallbacks. Relative `/imageproxy/...` URLs
+use an authenticated reader relay to the configured NewsBlur server; List prefers
+NewsBlur's small thumbnails. Lazy image attributes and publisher-relative paths
+are recovered before sanitization. No publisher pages are scraped.
+External images load without a referrer or CORS requirement; external-site cookies
+follow your browser's settings. Unavailable images retain a placeholder, and
+Pictures hidden suppresses both relay and external requests.
+
+Each story has a small filled dot when unread and a hollow dot when read. It
+changes only after NewsBlur confirms the read update; state is also available
+as text for accessibility.
 
 Opening a story automatically requests NewsBlur's full-text extraction. The feed
 version stays visible while it loads; successful full text replaces it in the
@@ -33,6 +41,13 @@ Scroll toward the end of the collection to load more stories automatically.
 Loaded stories stay in place, including expanded List articles. Loading pauses
 offline and offers Retry loading stories after an error; Load more stories is
 also available for keyboard access. Refresh starts again at the newest batch.
+
+Scrolling past a story marks it read in NewsBlur; scrolling to the end of an
+opened article marks that article read. Only stories actually seen are included.
+Opening stories, changing layouts, and loading batches do not mark them read.
+Read/save buttons have been removed. Previously saved stories remain available
+through Saved stories. Failed read updates keep stories unread and pause further
+updates until Refresh; offline/background browsing does not send read updates.
 
 List and Magazine group consecutive publication days in your browser timezone;
 Cards show publication timestamps. Last refreshed records the last successful
