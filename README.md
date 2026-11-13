@@ -14,8 +14,15 @@ The frontend uses native JavaScript/CSS with no bundling step.
 
 Cards and Magazine display lead pictures, and the article reader supports inline
 pictures. Use Appearance → Pictures to hide them across the reader. Images load
-over HTTPS with anonymous CORS requests and no referrer; hosts must allow CORS.
-Unavailable images show a placeholder, and List does not load thumbnails.
+over HTTPS as normal browser image requests without a referrer; CORS permission
+is not required. NewsBlur's signed image URLs are used for inline pictures when
+provided. External-site cookies follow your browser's settings.
+Unavailable images show a placeholder; List shows small thumbnails beside headlines.
+
+Opening a story automatically requests NewsBlur's full-text extraction. The feed
+version stays visible while it loads; successful full text replaces it in the
+article pane. If NewsBlur cannot provide full text, the reader says so and keeps
+the feed version and original link. Extraction remains a NewsBlur responsibility.
 
 ## Documentation
 

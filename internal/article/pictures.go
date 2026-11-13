@@ -7,7 +7,7 @@ import (
 	"golang.org/x/net/html"
 )
 
-func deferPictures(sanitizedHTML string) string {
+func deferPictures(sanitizedHTML string, sources map[string]string) string {
 	// Never emit an image src from upstream HTML. Browser code supplies request
 	// privacy attributes before enabling a validated deferred URL.
 	var result strings.Builder
@@ -29,7 +29,10 @@ func deferPictures(sanitizedHTML string) string {
 		var source, alt string
 		for _, attr := range token.Attr {
 			if attr.Key == "src" {
-				source = PictureURL(attr.Val)
+				source = PictureURL(sources[attr.Val])
+				if source == "" {
+					source = PictureURL(attr.Val)
+				}
 			}
 			if attr.Key == "alt" {
 				alt = attr.Val

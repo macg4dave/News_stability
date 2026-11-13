@@ -3,7 +3,7 @@ const { test, expect } = require("@playwright/test");
 const story = (hash = "1:abc", title = "Synthetic story") => ({ hash, title, html: "<p>Readable article text.</p>", excerpt: "Readable article text.", url: "https://example.invalid/story", read: false, saved: false, related: [], links: [], reading_minutes: 1 });
 
 async function fixture(page) {
-  const model = { authenticated: false, failAction: false, failRead: false, expired: false, actions: [], reads: [], stories: [story(), story("1:def", "Second synthetic story")] };
+  const model = { authenticated: false, failAction: false, failRead: false, expired: false, actions: [], reads: [], textRequests: [], failText: false, fullTexts: {}, stories: [story(), story("1:def", "Second synthetic story")] };
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const path = decodeURIComponent(url.pathname);
@@ -14,6 +14,13 @@ async function fixture(page) {
     if (path === "/api/logout") { model.authenticated = false; return reply({ signed_out: true }); }
     if (model.expired) { model.authenticated = false; return reply({ code: "session_expired", message: "Session expired." }, 401); }
     if (path === "/api/feeds") return reply({ feeds: [{ id: 1, title: "Synthetic feed", positive: 1, neutral: 2 }], folders: [{ title: "Reading", children: [{ feed_id: 1 }] }] });
+    if (path.endsWith("/text")) {
+      const hash = path.split("/")[3];
+      model.textRequests.push(hash);
+      if (model.failText) return reply({ code: "full_text_unavailable", message: "Full text unavailable." }, 404);
+      const source = model.stories.find(item => item.hash === hash) || story(hash);
+      return reply({ hash, html: model.fullTexts[hash] ?? source.html, reading_minutes: 3, links: source.links, picture: source.picture });
+    }
     if (path.endsWith("/state")) {
       model.actions.push(route.request().postDataJSON().action);
       if (model.failAction) return reply({ code: "action_rejected", message: "NewsBlur could not apply that action." }, 409);
@@ -260,31 +267,33 @@ test("article return restores origin after linked coverage and layout changes", 
 
 const pixelPNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==", "base64");
 
-test("pictures load anonymously in Cards and articles with inert inline markup", async ({ page, context }) => {
+test("pictures use normal image requests without CORS or referrers", async ({ page }) => {
   const model = await fixture(page);
   model.stories[0].picture = "https://images.invalid/photo.png";
   model.stories[0].html = '<p>Readable article text.</p><img data-picture-src="https://images.invalid/inline.png" alt="A coastal scene">';
-  await context.addCookies([{ name: "synthetic-image-cookie", value: "must-not-send", url: "https://images.invalid" }]);
   const requests = [];
   await page.route("https://images.invalid/**", async route => {
     requests.push(await route.request().allHeaders());
-    await route.fulfill({ contentType: "image/png", headers: { "Access-Control-Allow-Origin": "*" }, body: pixelPNG });
+    await route.fulfill({ contentType: "image/png", body: pixelPNG });
   });
   await openStory(page);
   await expect.poll(() => requests.length).toBeGreaterThanOrEqual(2);
   await expect.poll(() => page.locator("#article-content img").evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
   await expect(page.locator("#article-content img")).toHaveAttribute("alt", "A coastal scene");
   for (const request of requests) {
-    expect(request.cookie).toBeUndefined();
     expect(request.referer).toBeUndefined();
+    expect(request.origin).toBeUndefined();
   }
-  await expect(page.locator("#stories img")).toHaveAttribute("crossorigin", "anonymous");
+  await expect(page.locator("#stories img")).not.toHaveAttribute("crossorigin");
   await expect(page.locator("#stories img")).toHaveAttribute("referrerpolicy", "no-referrer");
   expect(model.actions).toEqual([]);
 });
 
-test("List and hidden pictures avoid requests; preference survives reload", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("news-stability-layout-v1", "list"));
+test("hidden pictures avoid requests in List and Cards; preference survives reload", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("news-stability-layout-v1", "list");
+    localStorage.setItem("news-stability-pictures-v1", "hide");
+  });
   const model = await fixture(page);
   model.stories[0].picture = "https://images.invalid/photo.png";
   model.stories[0].html = '<p>Readable article text.</p><img data-picture-src="https://images.invalid/inline.png" alt="Coastal scene">';
@@ -310,6 +319,28 @@ test("List and hidden pictures avoid requests; preference survives reload", asyn
   await expect(page.getByLabel("Pictures", { exact: true })).toHaveValue("hide");
 });
 
+test("List shows compact thumbnails beside headlines on desktop and mobile", async ({ page }) => {
+  const model = await fixture(page);
+  model.stories[0].picture = "https://images.invalid/photo.png";
+  await page.route("https://images.invalid/**", route => route.fulfill({ contentType: "image/png", body: pixelPNG }));
+  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  const image = page.locator("#stories .story-picture img");
+  await expect(image).toBeVisible();
+  await expect.poll(() => image.evaluate(img => img.naturalWidth)).toBeGreaterThan(0);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const picture = await page.locator("#stories .story-picture").boundingBox();
+    const title = await page.locator("#stories .story strong").first().boundingBox();
+    expect(picture.width).toBeLessThanOrEqual(60);
+    expect(picture.height).toBeLessThanOrEqual(60);
+    expect(title.x).toBeGreaterThanOrEqual(picture.x + picture.width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+  await expect(page.locator("#stories .story").nth(1).locator(".story-picture")).toHaveCount(0);
+  expect(model.actions).toEqual([]);
+});
+
 test("browser-blocked pictures show a fallback without retrying", async ({ page }) => {
   const model = await fixture(page);
   model.stories[0].picture = "https://images.invalid/no-cors.png";
@@ -324,7 +355,7 @@ test("browser-blocked pictures show a fallback without retrying", async ({ page 
   await expect(page.locator("#stories .picture-fallback")).toBeVisible();
   await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
   expect(attempts).toBe(1);
-  await expect(page.locator("#stories img")).toHaveAttribute("crossorigin", "anonymous");
+  await expect(page.locator("#stories img")).not.toHaveAttribute("crossorigin");
 });
 
 test("failed and unsafe pictures retain readable stories without credentialed retries", async ({ page }) => {
@@ -342,4 +373,47 @@ test("failed and unsafe pictures retain readable stories without credentialed re
   model.stories[0].picture = "http://127.0.0.1:4173/api/session";
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await expect(page.locator("#stories img")).toHaveCount(0);
+});
+
+test("opening a story loads full text and preserves explicit story state", async ({ page }) => {
+  const model = await fixture(page);
+  model.fullTexts["1:abc"] = "<p>Complete article beyond the short feed preview.</p>";
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await page.locator("#stories .story").first().click();
+  await expect(page.locator("#article-content")).toContainText("Complete article beyond");
+  await expect(page.locator("#full-text-status")).toHaveText("Full text from NewsBlur.");
+  await page.getByRole("button", { name: "Save story", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Unsave story", exact: true })).toBeVisible();
+  await page.locator("#stories .story").first().click();
+  await expect(page.locator("#article-content")).toContainText("Complete article beyond");
+  expect(model.textRequests).toEqual(["1:abc"]);
+  expect(model.actions).toEqual(["save"]);
+});
+
+test("unavailable full text keeps feed text and the original link", async ({ page }) => {
+  const model = await fixture(page);
+  model.failText = true;
+  await openStory(page);
+  await expect(page.locator("#full-text-status")).toContainText("Showing the feed version");
+  await expect(page.locator("#article-content")).toContainText("Readable article text.");
+  await expect(page.locator("#original")).toBeVisible();
+  expect(model.textRequests).toEqual(["1:abc"]);
+  expect(model.actions).toEqual([]);
+});
+
+test("late full text cannot replace a subsequently opened story", async ({ page }) => {
+  await fixture(page);
+  let release;
+  const blocked = new Promise(resolve => { release = resolve; });
+  await page.route("**/api/stories/1%3Aabc/text", async route => {
+    await blocked;
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ hash: "1:abc", html: "<p>Late first article.</p>", links: [] }) }).catch(() => {});
+  });
+  await openStory(page);
+  await expect(page.locator("#full-text-status")).toContainText("Loading full text");
+  await page.locator("#stories .story").nth(1).click();
+  await expect(page.locator("#article-title")).toHaveText("Second synthetic story");
+  release();
+  await expect(page.locator("#full-text-status")).toHaveText("Full text from NewsBlur.");
+  await expect(page.locator("#article-content")).not.toContainText("Late first article");
 });

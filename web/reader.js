@@ -311,6 +311,7 @@ function clearArticle() {
   el("original").hidden = true;
   el("original").removeAttribute("href");
   el("article-status").hidden = true;
+  el("full-text-status").hidden = true;
   el("connections").replaceChildren();
   el("connections").hidden = true;
 }
@@ -331,15 +332,7 @@ function selectStory(story, preserveOrigin = false) {
   message("article-title", story.title || "Untitled story");
   message("article-feed", story.feed_title || state.feeds.get(story.feed_id)?.title || state.feed?.title || "NewsBlur");
   message("article-meta", storyMeta(story));
-  // This is the sole HTML insertion point. /api/feeds/{id}/stories emits HTML
-  // only after applying the server-owned article sanitizer allowlist.
-  el("article-content").innerHTML = story.html;
-  if (!story.html) message("article-content", "This story has no article text. You can read it on the original site.");
-  if (!el("article-content").querySelector("img[data-picture-src]")) {
-    const lead = createPicture(story.picture);
-    if (lead) el("article-content").prepend(lead);
-  }
-  refreshPictures();
+  renderArticleContent(story);
   let original = null;
   try {
     const url = new URL(story.url);
@@ -351,6 +344,47 @@ function selectStory(story, preserveOrigin = false) {
   renderConnections(story);
   for (const button of el("stories").querySelectorAll("button")) button.setAttribute("aria-current", String(button.dataset.hash === story.hash));
   el("article-title").focus();
+  el("full-text-status").hidden = true;
+  if (story.kind !== "briefing_summary") loadFullText(story);
+}
+
+function renderArticleContent(story) {
+  // This is the sole HTML insertion point. Feed, linked, briefing and full-text
+  // endpoints all apply the same server-owned article sanitizer allowlist.
+  el("article-content").innerHTML = story.html;
+  if (!story.html) message("article-content", "This story has no article text. You can read it on the original site.");
+  if (!el("article-content").querySelector("img[data-picture-src]")) {
+    const lead = createPicture(story.picture);
+    if (lead) el("article-content").prepend(lead);
+  }
+  refreshPictures();
+}
+
+async function loadFullText(story) {
+  el("full-text-status").hidden = false;
+  if (story.fullTextLoaded) {
+    message("full-text-status", "Full text from NewsBlur.");
+    return;
+  }
+  const controller = new AbortController();
+  state.articleRequest = controller;
+  const epoch = state.epoch;
+  message("full-text-status", "Loading full text from NewsBlur...");
+  try {
+    const text = await api(`/api/stories/${encodeURIComponent(story.hash)}/text`, { signal: controller.signal });
+    if (epoch !== state.epoch || controller.signal.aborted || state.selected !== story) return;
+    if (text.hash !== story.hash || typeof text.html !== "string") throw new Error("Unexpected full-text response.");
+    // Only replace content fields: read/saved state may have changed in flight.
+    Object.assign(story, { html: text.html, reading_minutes: text.reading_minutes, links: text.links, picture: text.picture || story.picture, fullTextLoaded: true });
+    renderArticleContent(story);
+    message("article-meta", storyMeta(story));
+    renderConnections(story);
+    message("full-text-status", "Full text from NewsBlur.");
+  } catch (error) {
+    if (epoch !== state.epoch || controller.signal.aborted || state.selected !== story) return;
+    if (error.code === "session_expired") await readingError(error, "full-text-status");
+    else message("full-text-status", `${error.code === "full_text_unavailable" ? "Full text is unavailable." : "Could not load full text."} Showing the feed version. You can read the original.`, true);
+  }
 }
 
 function renderActions() {

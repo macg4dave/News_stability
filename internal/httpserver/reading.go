@@ -154,7 +154,7 @@ type readerStory struct {
 func (a *Auth) presentStories(stories []newsblur.Story) []readerStory {
 	result := make([]readerStory, 0, len(stories))
 	for _, s := range stories {
-		safeHTML := a.article.HTML(s.Content)
+		safeHTML := a.article.HTMLWithPictures(s.Content, s.PictureSources)
 		related := s.Related
 		if related == nil {
 			related = []newsblur.RelatedStory{}

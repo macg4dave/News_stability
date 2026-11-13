@@ -5,6 +5,30 @@ All work below is planned unless explicitly described as existing behavior.
 
 ## Implementation progress
 
+Stories now request full text automatically when opened through the story list,
+keyboard navigation, saved reading, or related coverage. The feed version remains
+visible during loading and on failure; successful extracted text replaces the
+article body without changing read/saved state. Briefing summaries retain their
+generated content. Loaded full text is reused only on the current in-memory story
+objects; nothing is persisted to browser storage or a reader story database.
+
+The authenticated `GET /api/stories/{hash}/text` adapter calls NewsBlur's fixed
+`/rss_feeds/original_text?story_hash=...` endpoint, verifies returned story identity,
+and applies the existing article/picture sanitizer. It accepts no upstream URL,
+does not request force/debug, and performs no local scraping. Failed/empty text,
+unsupported endpoints, transport failure, and session expiry remain visible.
+Late responses cannot replace a subsequently selected article or signed-out view.
+
+The upstream contract was checked against
+[NewsBlur original_text](https://github.com/samuelclay/NewsBlur/blob/main/apps/rss_feeds/views.py#L630)
+on 13 November 2026 (inspected file blob
+`607791c974d0f663e3ca0fbf8fd29782343afbbe`). Installed endpoint availability,
+publisher extraction completeness, and paywall behavior remain acceptance checks;
+the reader cannot guarantee that NewsBlur can extract every publisher's full text.
+Go formatting/vet/tests/build and all 22 synthetic browser tests pass, covering
+sanitization, unavailable text, wrong identity, no implicit read/save writes,
+in-memory reuse, and stale response handling. No upstream source was copied.
+
 The first implementation slice delivers the visible Cards / Magazine / List
 selector, Cards as the default, allowlisted browser-local preference storage,
 and three responsive text-first treatments. Magazine emphasizes the first
@@ -36,14 +60,20 @@ fallback to pictures already in story content. The common sanitizer retains
 only validated absolute HTTPS images as inert `data-picture-src` placeholders;
 events, styles, srcset, embedded credentials, and non-HTTPS image URLs are removed.
 Cards/Magazine show a lead picture; articles retain inline pictures and alt text.
-List does not load thumbnails. Appearance offers a saved Show/Hide Pictures
+List displays compact 56-pixel square thumbnails beside headlines, with no empty
+image column for stories without pictures. Appearance offers a saved Show/Hide Pictures
 preference that suppresses picture requests in all views when hidden.
 
-The browser supplies anonymous CORS, no-referrer, lazy-loading, and asynchronous
-decoding attributes before assigning image sources. Reader-origin image URLs are
+The browser uses ordinary image requests with no-referrer, lazy-loading, and
+asynchronous decoding. An initial implementation incorrectly required anonymous
+CORS, which rejected otherwise displayable publisher images; that requirement
+has been removed. NewsBlur's signed image replacements now apply to inline images
+as well as lead pictures, including HTTP originals with HTTPS replacements.
+External-site cookies follow the browser's settings; there is no claim that
+normal image requests omit those cookies. Reader-origin image URLs are
 rejected; no server-side image fetcher or arbitrary image proxy was introduced.
 Nginx permits HTTPS pictures while retaining same-origin scripts/connections.
-Remote sites can see the browser's IP; hosts without CORS, HTTP-only images,
+Remote sites can see the browser's IP; inaccessible hosts, HTTP-only images without HTTPS replacements,
 and expired signed URLs receive a readable fallback. There is no credentialed
 retry. Installed-account image availability and host compatibility remain unverified.
 
@@ -52,11 +82,11 @@ The metadata contract was checked against
 on 13 November 2026 (inspected file blob
 `9627cfc5a15bef87581f4b6b5ff8f4ead1595d63`); no upstream source was copied.
 
-Picture checks: Go formatting, vet, tests, and build pass; 19 synthetic Chromium
+Picture checks: Go formatting, vet, tests, and build pass; 23 synthetic Chromium
 tests and four isolated Docker integration tests pass. Coverage includes image
-metadata, inert sanitized markup, unsafe URLs, anonymous requests without cookies
-or referrers, browser-blocked/failed responses, hidden pictures, and List request
-suppression. Synthetic Cards/Magazine and mobile picture layouts were visually
+metadata, inert sanitized markup, unsafe URLs, normal image requests without a
+referrer or CORS requirement, browser-blocked/failed responses, hidden pictures,
+and compact List thumbnails on desktop/mobile. Synthetic Cards/Magazine and mobile picture layouts were visually
 reviewed through the Docker preview. Actual installed-account images and manual
 accessibility acceptance are still open.
 
@@ -104,7 +134,7 @@ API contract or the installed NewsBlur version.
 | --- | --- | --- |
 | Cards | Comfortable image-led browsing with consistent cards, headline, short excerpt, source, age, and read/saved indicators. | Responsive grid on wide screens; single column on phones; stable image space; equally useful text-only cards. |
 | Magazine | Editorial rhythm with a larger lead story and smaller supporting stories, generous typography, and restrained imagery. | Lead spans at most two columns; DOM, visual, and keyboard order agree; narrow screens become a readable single column. |
-| List | Dense scanning with compact headline rows, source, age, and read/saved indicators. | Images optional and off by default; long titles remain accessible; controls work with keyboard, touch, and pointer. |
+| List | Dense scanning with compact headline rows, small thumbnails, source, age, and read/saved indicators. | Show 56-pixel thumbnails when Pictures is enabled; long titles remain accessible; controls work with keyboard, touch, and pointer. |
 
 Cards is the default for a new browser. A visible, accessible selector offers
 Cards / Magazine / List and remembers the choice as a local appearance setting.
@@ -284,7 +314,7 @@ For every actual import:
 | --- | --- | --- |
 | Exact upstream code candidates and commits not selected | Design references are usable; code imports are not yet ready. | Inspect relevant files during milestone 1 and complete the reuse inventory. |
 | Whisper derivative-work licensing scope unresolved | Copying protected Whisper implementation cannot be treated as attribution-only. | Establish compatible GPL distribution/source handling, obtain alternative permission, or implement the interaction independently. |
-| Installed image-host compatibility and intelligence contracts unverified | Picture presentation is implemented with HTTPS/CORS fallbacks; importance explanations remain pending. | Verify image fields and CORS support on the installed server using dedicated synthetic content; preserve text-only fallbacks. No local ranking substitute. |
+| Installed image-host compatibility and intelligence contracts unverified | Picture presentation uses ordinary HTTPS image loading and NewsBlur's signed replacements; importance explanations remain pending. | Verify image fields and image-host access on the installed server using dedicated synthetic content; preserve text-only fallbacks. No local ranking substitute. |
 | Installed release acceptance and human accessibility checks open | Three-view implementation alone will not establish release readiness. | Complete milestone 6 with recorded evidence. |
 
 After the three-view release, consider per-feed layout preferences, density

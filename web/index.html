@@ -69,6 +69,7 @@
           <button id="toggle-save" type="button">Save story</button>
         </div>
         <p id="article-status" role="status" hidden></p>
+        <p id="full-text-status" class="muted" role="status" hidden></p>
         <a id="original" target="_blank" rel="noopener noreferrer" hidden>Read the original</a>
         <div id="article-content" class="article-content"></div>
         <section id="connections" class="connections" aria-label="Linked stories" hidden></section>
@@ -89,7 +90,7 @@
       <label for="appearance-pictures">Pictures</label>
       <select id="appearance-pictures"><option value="show">Show pictures</option><option value="hide">Hide pictures</option></select>
     </div>
-    <p class="muted">Pictures load from external sites, which can see your IP address. Some sites block private image requests.</p>
+    <p class="muted">Pictures load from external sites under your browser's cookie settings. Those sites can see your IP address.</p>
     <form method="dialog"><button autofocus>Done</button></form>
   </dialog>
   <dialog id="shortcuts" aria-labelledby="shortcuts-heading">

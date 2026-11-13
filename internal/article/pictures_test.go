@@ -30,3 +30,17 @@ func TestPicturesAreDeferredAndSanitized(t *testing.T) {
 		t.Fatal("invented a picture")
 	}
 }
+
+func TestInlinePicturesUseNewsBlurReplacements(t *testing.T) {
+	sources := map[string]string{
+		"http://publisher.invalid/photo.jpg":   "https://proxy.invalid/signed.jpg?token=synthetic&width=800",
+		"https://publisher.invalid/second.jpg": "javascript:bad()",
+	}
+	output := New().HTMLWithPictures(`<p>Article</p><img src="http://publisher.invalid/photo.jpg" alt="Coast" onerror="bad()"><img src="https://publisher.invalid/second.jpg">`, sources)
+	if !strings.Contains(output, `data-picture-src="https://proxy.invalid/signed.jpg?token=synthetic&amp;width=800"`) || !strings.Contains(output, `alt="Coast"`) || strings.Contains(output, "onerror") || strings.Contains(output, "javascript:") || strings.Contains(output, " src=") {
+		t.Fatalf("unsafe or missing replacement: %s", output)
+	}
+	if !strings.Contains(output, `data-picture-src="https://publisher.invalid/second.jpg"`) {
+		t.Fatal("unsafe replacement must retain a valid original")
+	}
+}

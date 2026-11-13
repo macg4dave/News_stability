@@ -11,19 +11,20 @@ import (
 // Story contains source data for the reader adapter. Content is deliberately
 // excluded from JSON: only the HTTP presentation layer may emit sanitized HTML.
 type Story struct {
-	Hash      string         `json:"story_hash"`
-	Title     string         `json:"story_title"`
-	Author    string         `json:"story_authors"`
-	Date      string         `json:"story_date"`
-	URL       string         `json:"story_permalink"`
-	Content   string         `json:"-"`
-	Pictures  []string       `json:"-"`
-	Read      bool           `json:"read"`
-	Saved     bool           `json:"starred"`
-	FeedID    int            `json:"-"`
-	FeedTitle string         `json:"-"`
-	Related   []RelatedStory `json:"-"`
-	Kind      string         `json:"-"`
+	Hash           string            `json:"story_hash"`
+	Title          string            `json:"story_title"`
+	Author         string            `json:"story_authors"`
+	Date           string            `json:"story_date"`
+	URL            string            `json:"story_permalink"`
+	Content        string            `json:"-"`
+	Pictures       []string          `json:"-"`
+	PictureSources map[string]string `json:"-"`
+	Read           bool              `json:"read"`
+	Saved          bool              `json:"starred"`
+	FeedID         int               `json:"-"`
+	FeedTitle      string            `json:"-"`
+	Related        []RelatedStory    `json:"-"`
+	Kind           string            `json:"-"`
 }
 
 // RelatedStory is a source story or cluster member identified by NewsBlur.

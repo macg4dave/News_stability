@@ -50,7 +50,7 @@ func (s wireStory) story() (Story, error) {
 			break
 		}
 	}
-	return Story{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, URL: s.URL, Content: s.Content, Pictures: pictures, Read: s.Read == 1, Saved: s.Saved, FeedID: s.FeedID, FeedTitle: s.FeedTitle, Related: related}, nil
+	return Story{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, URL: s.URL, Content: s.Content, Pictures: pictures, PictureSources: s.SecureImages, Read: s.Read == 1, Saved: s.Saved, FeedID: s.FeedID, FeedTitle: s.FeedTitle, Related: related}, nil
 }
 
 func decodeStoryPage(body []byte, page int) (StoryPage, error) {

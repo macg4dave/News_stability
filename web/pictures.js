@@ -1,5 +1,5 @@
-// Original News Stability code. Only the browser fetches pictures; reader and
-// NewsBlur session credentials are never forwarded to an image proxy.
+// Original News Stability code. Server-side NewsBlur cookies stay in Go;
+// the browser makes normal image requests governed by its cookie settings.
 const storageKey = "news-stability-pictures-v1";
 
 function safePictureURL(value) {
@@ -49,13 +49,13 @@ export function initializePictures() {
         placeholder.replaceWith(pictureFrame(image));
       }
       const frame = image.parentElement;
-      const visible = control.value === "show" && !(frame.classList.contains("story-picture") && reader.dataset.layout === "list");
+      const visible = control.value === "show";
       frame.hidden = !visible;
       if (!prepared.has(image)) {
         prepared.add(image);
-        // Set privacy attributes before src. anonymous omits cross-site cookies
-        // and requires CORS; never retry a rejected image with credentials.
-        image.crossOrigin = "anonymous";
+        // Ordinary image display does not require CORS permission. Keep URLs
+        // isolated from reader-origin endpoints and suppress the referrer.
+        // External hosts receive a normal browser image request.
         image.referrerPolicy = "no-referrer";
         image.loading = "lazy";
         image.decoding = "async";
