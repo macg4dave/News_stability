@@ -17,6 +17,8 @@ class ReaderTests(unittest.TestCase):
         with self.client.open(self.base + "/") as response:
             self.assertIn(b"News Stability", response.read())
             self.assertIn("frame-ancestors 'none'", response.headers["Content-Security-Policy"])
+            self.assertIn("img-src https:;", response.headers["Content-Security-Policy"])
+            self.assertIn("connect-src 'self';", response.headers["Content-Security-Policy"])
             self.assertEqual(response.headers["Referrer-Policy"], "no-referrer")
         for path in ("/reader.js", "/reader.css"):
             with self.client.open(self.base + path) as response:

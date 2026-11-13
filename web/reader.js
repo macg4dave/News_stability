@@ -2,11 +2,13 @@ import { KeyboardHandler } from "./keyboard.js";
 import { initializeAppearance } from "./appearance.js";
 import { getRelationBuckets, pageRelations } from "./relations.js";
 import { initializeLayout } from "./layout.js";
+import { createPicture, initializePictures } from "./pictures.js";
 
 const el = (id) => document.getElementById(id);
 const state = { session: null, feeds: new Map(), folders: [], feed: null, view: "feed", page: 1, stories: [], story: null, originStory: null, selected: null, actionPending: false, resume: null, expiryTimer: null, epoch: 0, feedRequest: null, storyRequest: null, articleRequest: null };
 initializeAppearance();
 initializeLayout();
+const refreshPictures = initializePictures();
 el("show-appearance").addEventListener("click", () => el("appearance").showModal());
 
 class APIError extends Error {
@@ -333,6 +335,11 @@ function selectStory(story, preserveOrigin = false) {
   // only after applying the server-owned article sanitizer allowlist.
   el("article-content").innerHTML = story.html;
   if (!story.html) message("article-content", "This story has no article text. You can read it on the original site.");
+  if (!el("article-content").querySelector("img[data-picture-src]")) {
+    const lead = createPicture(story.picture);
+    if (lead) el("article-content").prepend(lead);
+  }
+  refreshPictures();
   let original = null;
   try {
     const url = new URL(story.url);
@@ -408,6 +415,8 @@ function renderStories() {
     button.className = `story${story.read ? " read" : ""}`;
     button.dataset.hash = story.hash;
     button.setAttribute("aria-current", String(story.hash === state.story));
+    const picture = createPicture(story.picture, "", true);
+    if (picture) button.append(picture);
     const title = document.createElement("strong");
     title.textContent = story.title || "Untitled story";
     const meta = document.createElement("small");
@@ -431,6 +440,7 @@ function renderStories() {
     list.append(row);
   }
   el("stories").replaceChildren(list);
+  refreshPictures();
 }
 
 function renderConnections(story) {

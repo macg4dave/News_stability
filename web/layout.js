@@ -24,6 +24,7 @@ export function initializeLayout() {
     });
     const top = anchor?.getBoundingClientRect().top;
     reader.dataset.layout = control.value;
+    reader.dispatchEvent(new Event("layoutchange"));
     if (anchor) window.scrollBy(0, anchor.getBoundingClientRect().top - top);
     try { localStorage.setItem(storageKey, control.value); } catch { /* Keep this tab usable. */ }
   });

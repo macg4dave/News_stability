@@ -8,7 +8,8 @@ import (
 )
 
 // Sanitizer keeps readable formatting while excluding active content, forms,
-// embedded media, remote images, styles, IDs, and application-like controls.
+// embedded media, styles, IDs, and application-like controls. Images are emitted
+// as inert placeholders; the browser enables them under the picture preference.
 type Sanitizer struct{ policy *bluemonday.Policy }
 
 // New creates an immutable policy safe for concurrent sanitization.
@@ -16,6 +17,8 @@ func New() *Sanitizer {
 	p := bluemonday.NewPolicy()
 	p.AllowElements("p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "code", "strong", "b", "em", "i", "s", "del", "u", "ul", "ol", "li", "dl", "dt", "dd", "table", "thead", "tbody", "tr", "th", "td", "caption", "sup", "sub", "a")
 	p.AllowAttrs("href", "title").OnElements("a")
+	p.AllowElements("img")
+	p.AllowAttrs("src", "alt").OnElements("img")
 	p.RequireParseableURLs(true)
 	p.AllowRelativeURLs(false)
 	p.AllowURLSchemes("https", "http")
@@ -25,8 +28,10 @@ func New() *Sanitizer {
 	return &Sanitizer{policy: p}
 }
 
-// HTML sanitizes upstream story content as the final transformation.
-func (s *Sanitizer) HTML(untrusted string) string { return s.policy.Sanitize(untrusted) }
+// HTML sanitizes upstream story content and defers validated picture URLs.
+func (s *Sanitizer) HTML(untrusted string) string {
+	return deferPictures(s.policy.Sanitize(untrusted))
+}
 
 // SafeURL allows only absolute HTTP(S) article links with no embedded credentials.
 func SafeURL(value string) string {

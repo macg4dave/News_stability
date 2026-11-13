@@ -8,10 +8,10 @@ import (
 	"golang.org/x/net/html"
 )
 
-func TestSanitizerRemovesActiveMarkupAndTracking(t *testing.T) {
+func TestSanitizerRemovesActiveMarkupAndDefersImages(t *testing.T) {
 	input := `<h2 id="login">Readable heading</h2><p style="display:none" onclick="alert(1)">Useful <strong>text</strong></p><script>alert(1)</script><iframe src="https://tracker.invalid"></iframe><form action="https://tracker.invalid"><input name="password"></form><img src="https://tracker.invalid/pixel"><svg onload="alert(1)"></svg><a href="javascript:alert(1)">unsafe</a><a href="data:text/html,bad">data</a><a href="/api/logout">relative</a><a href="https://example.invalid/story">safe link</a>`
 	output := New().HTML(input)
-	for _, forbidden := range []string{"<script", "<iframe", "<form", "<input", "<img", "<svg", "onclick", "onload", "style=", "id=", "javascript:", "data:text", `href="/`} {
+	for _, forbidden := range []string{"<script", "<iframe", "<form", "<input", "<svg", "onclick", "onload", "style=", "id=", "javascript:", "data:text", `href="/`} {
 		if strings.Contains(output, forbidden) {
 			t.Errorf("unsafe %q in sanitized markup", forbidden)
 		}
@@ -22,6 +22,13 @@ func TestSanitizerRemovesActiveMarkupAndTracking(t *testing.T) {
 	tokens := html.NewTokenizer(strings.NewReader(output))
 	for tokens.Next() != html.ErrorToken {
 		token := tokens.Token()
+		if token.Data == "img" {
+			for _, attr := range token.Attr {
+				if attr.Key != "data-picture-src" && attr.Key != "alt" {
+					t.Fatalf("unexpected image attribute %s", attr.Key)
+				}
+			}
+		}
 		if token.Data != "a" {
 			continue
 		}

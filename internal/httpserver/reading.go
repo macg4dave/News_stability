@@ -140,6 +140,7 @@ type readerStory struct {
 	URL            string                  `json:"url,omitempty"`
 	HTML           string                  `json:"html"`
 	Excerpt        string                  `json:"excerpt"`
+	Picture        string                  `json:"picture,omitempty"`
 	Read           bool                    `json:"read"`
 	Saved          bool                    `json:"saved"`
 	ReadingMinutes int                     `json:"reading_minutes"`
@@ -158,7 +159,7 @@ func (a *Auth) presentStories(stories []newsblur.Story) []readerStory {
 		if related == nil {
 			related = []newsblur.RelatedStory{}
 		}
-		result = append(result, readerStory{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, URL: article.SafeURL(s.URL), HTML: safeHTML, Excerpt: article.Excerpt(safeHTML), Read: s.Read, Saved: s.Saved, ReadingMinutes: article.ReadingMinutes(safeHTML), FeedID: s.FeedID, FeedTitle: s.FeedTitle, Kind: s.Kind, Related: related, Links: article.Links(safeHTML)})
+		result = append(result, readerStory{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, URL: article.SafeURL(s.URL), HTML: safeHTML, Excerpt: article.Excerpt(safeHTML), Picture: article.FirstPicture(s.Pictures, safeHTML), Read: s.Read, Saved: s.Saved, ReadingMinutes: article.ReadingMinutes(safeHTML), FeedID: s.FeedID, FeedTitle: s.FeedTitle, Kind: s.Kind, Related: related, Links: article.Links(safeHTML)})
 	}
 	return result
 }

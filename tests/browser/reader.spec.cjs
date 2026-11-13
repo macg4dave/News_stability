@@ -257,3 +257,89 @@ test("article return restores origin after linked coverage and layout changes", 
   await page.getByRole("button", { name: "Next page", exact: true }).click();
   await expect(page.getByRole("button", { name: "Back to stories", exact: true })).toBeHidden();
 });
+
+const pixelPNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==", "base64");
+
+test("pictures load anonymously in Cards and articles with inert inline markup", async ({ page, context }) => {
+  const model = await fixture(page);
+  model.stories[0].picture = "https://images.invalid/photo.png";
+  model.stories[0].html = '<p>Readable article text.</p><img data-picture-src="https://images.invalid/inline.png" alt="A coastal scene">';
+  await context.addCookies([{ name: "synthetic-image-cookie", value: "must-not-send", url: "https://images.invalid" }]);
+  const requests = [];
+  await page.route("https://images.invalid/**", async route => {
+    requests.push(await route.request().allHeaders());
+    await route.fulfill({ contentType: "image/png", headers: { "Access-Control-Allow-Origin": "*" }, body: pixelPNG });
+  });
+  await openStory(page);
+  await expect.poll(() => requests.length).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => page.locator("#article-content img").evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+  await expect(page.locator("#article-content img")).toHaveAttribute("alt", "A coastal scene");
+  for (const request of requests) {
+    expect(request.cookie).toBeUndefined();
+    expect(request.referer).toBeUndefined();
+  }
+  await expect(page.locator("#stories img")).toHaveAttribute("crossorigin", "anonymous");
+  await expect(page.locator("#stories img")).toHaveAttribute("referrerpolicy", "no-referrer");
+  expect(model.actions).toEqual([]);
+});
+
+test("List and hidden pictures avoid requests; preference survives reload", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("news-stability-layout-v1", "list"));
+  const model = await fixture(page);
+  model.stories[0].picture = "https://images.invalid/photo.png";
+  model.stories[0].html = '<p>Readable article text.</p><img data-picture-src="https://images.invalid/inline.png" alt="Coastal scene">';
+  let requests = 0;
+  await page.route("https://images.invalid/**", route => { requests++; return route.fulfill({ contentType: "image/png", headers: { "Access-Control-Allow-Origin": "*" }, body: pixelPNG }); });
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await expect(page.locator("#stories .story")).toHaveCount(2);
+  await expect(page.locator("#stories img")).not.toHaveAttribute("src");
+  expect(requests).toBe(0);
+  await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await page.getByLabel("Pictures", { exact: true }).selectOption("hide");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.getByLabel("Story layout", { exact: true }).selectOption("cards");
+  await expect(page.locator("#stories .story-picture")).toBeHidden();
+  await expect(page.locator("#stories img")).not.toHaveAttribute("src");
+  expect(requests).toBe(0);
+  await page.locator("#stories .story").first().click();
+  await expect(page.locator("#article-content .article-picture")).toBeHidden();
+  await expect(page.locator("#article-content img")).not.toHaveAttribute("src");
+  expect(requests).toBe(0);
+  await page.reload();
+  await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await expect(page.getByLabel("Pictures", { exact: true })).toHaveValue("hide");
+});
+
+test("browser-blocked pictures show a fallback without retrying", async ({ page }) => {
+  const model = await fixture(page);
+  model.stories[0].picture = "https://images.invalid/no-cors.png";
+  let attempts = 0;
+  await page.route("https://images.invalid/**", route => {
+    attempts++;
+    // Simulate the browser rejecting an image response (for example CORS).
+    // Fulfilled Playwright responses do not reproduce every network policy.
+    return route.abort("blockedbyresponse");
+  });
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await expect(page.locator("#stories .picture-fallback")).toBeVisible();
+  await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+  expect(attempts).toBe(1);
+  await expect(page.locator("#stories img")).toHaveAttribute("crossorigin", "anonymous");
+});
+
+test("failed and unsafe pictures retain readable stories without credentialed retries", async ({ page }) => {
+  const model = await fixture(page);
+  model.stories[0].picture = "https://images.invalid/broken.png";
+  model.stories[1].picture = "javascript:alert(1)";
+  let attempts = 0;
+  await page.route("https://images.invalid/**", route => { attempts++; return route.fulfill({ status: 404, headers: { "Access-Control-Allow-Origin": "*" }, body: "Unavailable" }); });
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await expect(page.locator("#stories .picture-fallback")).toBeVisible();
+  await expect(page.locator("#stories .story").first()).toContainText("Synthetic story");
+  await expect(page.locator("#stories .story").nth(1).locator("img")).toHaveCount(0);
+  await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+  expect(attempts).toBe(1);
+  model.stories[0].picture = "http://127.0.0.1:4173/api/session";
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect(page.locator("#stories img")).toHaveCount(0);
+});

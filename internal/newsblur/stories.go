@@ -17,6 +17,7 @@ type Story struct {
 	Date      string         `json:"story_date"`
 	URL       string         `json:"story_permalink"`
 	Content   string         `json:"-"`
+	Pictures  []string       `json:"-"`
 	Read      bool           `json:"read"`
 	Saved     bool           `json:"starred"`
 	FeedID    int            `json:"-"`

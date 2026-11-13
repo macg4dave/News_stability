@@ -5,17 +5,19 @@ import "encoding/json"
 // wireStory is shared by feed, individual-story, and briefing reads. Its raw
 // HTML never leaves this package through JSON; presentation sanitizes Content.
 type wireStory struct {
-	Hash      string `json:"story_hash"`
-	Title     string `json:"story_title"`
-	Author    string `json:"story_authors"`
-	Date      string `json:"story_date"`
-	URL       string `json:"story_permalink"`
-	Content   string `json:"story_content"`
-	Read      int    `json:"read_status"`
-	Saved     bool   `json:"starred"`
-	FeedID    int    `json:"story_feed_id"`
-	FeedTitle string `json:"feed_title"`
-	Cluster   []struct {
+	Hash         string            `json:"story_hash"`
+	Title        string            `json:"story_title"`
+	Author       string            `json:"story_authors"`
+	Date         string            `json:"story_date"`
+	URL          string            `json:"story_permalink"`
+	Content      string            `json:"story_content"`
+	ImageURLs    []string          `json:"image_urls"`
+	SecureImages map[string]string `json:"secure_image_urls"`
+	Read         int               `json:"read_status"`
+	Saved        bool              `json:"starred"`
+	FeedID       int               `json:"story_feed_id"`
+	FeedTitle    string            `json:"feed_title"`
+	Cluster      []struct {
 		Hash      string `json:"story_hash"`
 		Title     string `json:"story_title"`
 		FeedTitle string `json:"feed_title"`
@@ -38,7 +40,17 @@ func (s wireStory) story() (Story, error) {
 			break
 		}
 	}
-	return Story{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, URL: s.URL, Content: s.Content, Read: s.Read == 1, Saved: s.Saved, FeedID: s.FeedID, FeedTitle: s.FeedTitle, Related: related}, nil
+	pictures := make([]string, 0)
+	for _, source := range s.ImageURLs {
+		if secure := s.SecureImages[source]; secure != "" {
+			pictures = append(pictures, secure)
+		}
+		pictures = append(pictures, source)
+		if len(pictures) >= 24 {
+			break
+		}
+	}
+	return Story{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, URL: s.URL, Content: s.Content, Pictures: pictures, Read: s.Read == 1, Saved: s.Saved, FeedID: s.FeedID, FeedTitle: s.FeedTitle, Related: related}, nil
 }
 
 func decodeStoryPage(body []byte, page int) (StoryPage, error) {

@@ -31,9 +31,38 @@ Unicode boundaries, inert markup-like preview text, compact List behavior, and
 mobile return to the originating story after related coverage and layout changes.
 No additional upstream code or assets were copied.
 
+Picture support now uses NewsBlur `image_urls` and `secure_image_urls`, with a
+fallback to pictures already in story content. The common sanitizer retains
+only validated absolute HTTPS images as inert `data-picture-src` placeholders;
+events, styles, srcset, embedded credentials, and non-HTTPS image URLs are removed.
+Cards/Magazine show a lead picture; articles retain inline pictures and alt text.
+List does not load thumbnails. Appearance offers a saved Show/Hide Pictures
+preference that suppresses picture requests in all views when hidden.
+
+The browser supplies anonymous CORS, no-referrer, lazy-loading, and asynchronous
+decoding attributes before assigning image sources. Reader-origin image URLs are
+rejected; no server-side image fetcher or arbitrary image proxy was introduced.
+Nginx permits HTTPS pictures while retaining same-origin scripts/connections.
+Remote sites can see the browser's IP; hosts without CORS, HTTP-only images,
+and expired signed URLs receive a readable fallback. There is no credentialed
+retry. Installed-account image availability and host compatibility remain unverified.
+
+The metadata contract was checked against
+[NewsBlur story formatting](https://github.com/samuelclay/NewsBlur/blob/main/apps/rss_feeds/models.py#L3154)
+on 13 November 2026 (inspected file blob
+`9627cfc5a15bef87581f4b6b5ff8f4ead1595d63`); no upstream source was copied.
+
+Picture checks: Go formatting, vet, tests, and build pass; 19 synthetic Chromium
+tests and four isolated Docker integration tests pass. Coverage includes image
+metadata, inert sanitized markup, unsafe URLs, anonymous requests without cookies
+or referrers, browser-blocked/failed responses, hidden pictures, and List request
+suppression. Synthetic Cards/Magazine and mobile picture layouts were visually
+reviewed through the Docker preview. Actual installed-account images and manual
+accessibility acceptance are still open.
+
 Milestone 2's selector/List foundation is delivered. Milestones 1, 3, and 4 remain
-partial or planned: exact upstream code-candidate review, safe image
-presentation, date grouping, further article-return polish, and full theme/mobile
+partial or planned: exact upstream code-candidate review, installed image
+acceptance, date grouping, further article-return polish, and full theme/mobile
 visual and accessibility acceptance still need work. Existing installed-server
 release gates remain open. This is not the completed three-view release.
 
@@ -60,7 +89,7 @@ saved reading, feed search/unread filtering, themes/fonts, keyboard navigation,
 related-story links, and presentation of NewsBlur Daily Briefing output.
 The initial story renderer was a title/metadata list. The three-layout selector,
 text-first card/magazine composition, excerpts, and article return are now
-implemented as described above; card imagery remains new work.
+implemented as described above, including lead and inline pictures.
 
 Existing synthetic Go, browser, and proxy tests provide a foundation. This
 documentation change does not rerun or certify those suites. Installed-account
@@ -255,7 +284,7 @@ For every actual import:
 | --- | --- | --- |
 | Exact upstream code candidates and commits not selected | Design references are usable; code imports are not yet ready. | Inspect relevant files during milestone 1 and complete the reuse inventory. |
 | Whisper derivative-work licensing scope unresolved | Copying protected Whisper implementation cannot be treated as attribution-only. | Establish compatible GPL distribution/source handling, obtain alternative permission, or implement the interaction independently. |
-| Images currently removed by `internal/article/sanitize.go` and blocked by `img-src 'none'` in the Nginx policy; installed thumbnail and intelligence contracts unverified | Text-first layouts and excerpts work; imagery and importance explanations remain pending. | Verify the installed image contract, define privacy/credential-safe delivery, and update sanitizer/CSP boundaries with appropriate security and proxy checks before enabling images. No local ranking substitute. |
+| Installed image-host compatibility and intelligence contracts unverified | Picture presentation is implemented with HTTPS/CORS fallbacks; importance explanations remain pending. | Verify image fields and CORS support on the installed server using dedicated synthetic content; preserve text-only fallbacks. No local ranking substitute. |
 | Installed release acceptance and human accessibility checks open | Three-view implementation alone will not establish release readiness. | Complete milestone 6 with recorded evidence. |
 
 After the three-view release, consider per-feed layout preferences, density

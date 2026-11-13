@@ -12,6 +12,11 @@ NewsBlur summaries and source stories. Native/race, synthetic TLS, browser smoke
 and isolated proxy checks cover these flows; installed acceptance remains open.
 The frontend uses native JavaScript/CSS with no bundling step.
 
+Cards and Magazine display lead pictures, and the article reader supports inline
+pictures. Use Appearance → Pictures to hide them across the reader. Images load
+over HTTPS with anonymous CORS requests and no referrer; hosts must allow CORS.
+Unavailable images show a placeholder, and List does not load thumbnails.
+
 ## Documentation
 
 - [Architecture and project layout](docs/architecture.md)
@@ -43,6 +48,24 @@ included **Go: reader** VS Code debug configuration for breakpoints; see the
 ## Start development
 
 Requires Docker Engine/Desktop with Linux containers and Docker Compose v2.
+
+For a quick build and review from PowerShell:
+
+```powershell
+.\scripts\preview.ps1 -OpenBrowser
+```
+
+The script builds and starts Nginx and the Go reader, waits for both to become
+healthy, and prints the configured review URL (normally `http://localhost:8080`).
+Omit `-OpenBrowser` to leave the browser closed. It works from any working
+directory when invoked by its path, creates `.env` only if missing, and respects
+existing settings and `compose.override.yaml`. Re-run it to rebuild; use
+`docker compose stop app web` from the repository to stop the preview.
+If PowerShell blocks local scripts, run
+`powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\preview.ps1 -OpenBrowser`
+for this invocation. Service health does not verify NewsBlur sign-in or connectivity.
+
+Alternatively, start Compose manually:
 
 ```sh
 cp .env.example .env

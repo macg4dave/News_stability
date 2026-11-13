@@ -5,5 +5,6 @@
     "editor.defaultFormatter": "golang.go",
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": { "source.organizeImports": "explicit" }
-  }
+  },
+  "python.terminal.useEnvFile": true
 }

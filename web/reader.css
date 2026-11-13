@@ -74,6 +74,12 @@ input { min-width:0; width:100%; padding:.7rem; border:1px solid var(--line); ba
 [data-layout="list"] .story-excerpt { display:none; }
 [data-layout="magazine"] .stories li:first-child .story-excerpt { -webkit-line-clamp:4; font-size:1rem; }
 .back-to-stories { margin-bottom:1.5rem; font-size:.85rem; }
+.picture-frame { display:block; overflow:hidden; background:var(--wash); border-radius:.35rem; }
+.picture-frame img { display:block; width:100%; height:100%; object-fit:cover; }
+.story-picture { aspect-ratio:16/9; margin-bottom:1rem; }
+.article-picture { margin:1.5rem 0; min-height:4rem; }
+.article-picture img { height:auto; max-height:75vh; object-fit:contain; }
+.picture-fallback { display:block; padding:1rem; color:var(--muted); font:normal .85rem/1.5 system-ui,sans-serif; }
 @container (min-width:32rem) {
   [data-layout="cards"] .stories,[data-layout="magazine"] .stories { grid-template-columns:repeat(2,minmax(0,1fr)); }
   [data-layout="magazine"] .stories li:first-child { grid-column:span 2; }
