@@ -1,5 +1,11 @@
+import { KeyboardHandler } from "./keyboard.js";
+import { initializeAppearance } from "./appearance.js";
+import { getRelationBuckets, pageRelations } from "./relations.js";
+
 const el = (id) => document.getElementById(id);
-const state = { session: null, feeds: new Map(), folders: [], feed: null, page: 1, stories: [], story: null, resume: null, expiryTimer: null, epoch: 0, feedRequest: null, storyRequest: null };
+const state = { session: null, feeds: new Map(), folders: [], feed: null, view: "feed", page: 1, stories: [], story: null, resume: null, expiryTimer: null, epoch: 0, feedRequest: null, storyRequest: null, articleRequest: null };
+initializeAppearance();
+el("show-appearance").addEventListener("click", () => el("appearance").showModal());
 
 class APIError extends Error {
   constructor(status, data) {
@@ -38,12 +44,14 @@ function cancelReading() {
   state.epoch++;
   state.feedRequest?.abort();
   state.storyRequest?.abort();
+  state.articleRequest?.abort();
 }
 
 function signedOut(text = "Sign in to your NewsBlur account.", clear = false) {
   cancelReading();
   clearTimeout(state.expiryTimer);
-  state.resume = !clear && state.feed ? { username: state.session?.username, feedID: state.feed.id, page: state.page } : null;
+  if (el("shortcuts").open) el("shortcuts").close();
+  state.resume = !clear && (state.feed || state.view === "briefing") ? { username: state.session?.username, view: state.view, feedID: state.feed?.id, page: state.page } : null;
   state.session = null;
   el("signin").hidden = false;
   el("reader").hidden = true;
@@ -56,6 +64,7 @@ function signedOut(text = "Sign in to your NewsBlur account.", clear = false) {
   state.feeds.clear();
   state.folders = [];
   state.feed = null;
+  state.view = "feed";
   state.story = null;
   state.stories = [];
   el("feed-tree").replaceChildren();
@@ -164,7 +173,11 @@ el("logout").addEventListener("click", async () => {
 });
 
 el("reconnect").addEventListener("click", connect);
-el("refresh").addEventListener("click", loadFeeds);
+el("refresh").addEventListener("click", async () => {
+  await loadFeeds();
+  if (state.session?.authenticated && state.view === "briefing") await loadReadingPage({ kind: "briefing", page: state.page });
+});
+el("daily-briefing").addEventListener("click", () => loadReadingPage({ kind: "briefing", page: 1 }));
 
 function feedButton(feed) {
   const button = document.createElement("button");
@@ -179,7 +192,7 @@ function feedButton(feed) {
   count.textContent = String(feed.positive + feed.neutral);
   count.setAttribute("aria-label", `${count.textContent} unread`);
   button.append(title, count);
-  button.addEventListener("click", () => loadStories(feed, 1));
+  button.addEventListener("click", () => loadReadingPage({ kind: "feed", feed, page: 1 }));
   return button;
 }
 
@@ -218,6 +231,7 @@ function renderFeeds() {
     }
   }
   el("feed-tree").replaceChildren(root);
+  el("daily-briefing").setAttribute("aria-current", String(state.view === "briefing"));
 }
 
 async function loadFeeds() {
@@ -237,8 +251,9 @@ async function loadFeeds() {
     message("feed-status", state.feeds.size ? `${state.feeds.size} feeds` : "No subscriptions yet. Add feeds in NewsBlur, then refresh.");
     const resume = state.resume;
     state.resume = null;
-    if (resume?.username === state.session?.username && state.feeds.has(resume.feedID)) {
-      await loadStories(state.feeds.get(resume.feedID), resume.page);
+    if (resume?.username === state.session?.username) {
+      if (resume.view === "briefing") await loadReadingPage({ kind: "briefing", page: resume.page });
+      else if (state.feeds.has(resume.feedID)) await loadReadingPage({ kind: "feed", feed: state.feeds.get(resume.feedID), page: resume.page });
     }
     if (state.feed && state.feeds.has(state.feed.id)) {
       state.feed = state.feeds.get(state.feed.id);
@@ -266,6 +281,7 @@ async function loadFeeds() {
 }
 
 function clearArticle() {
+  state.articleRequest?.abort();
   state.story = null;
   message("article-title", "A little space for the stories that matter.");
   message("article-feed", "SETTLE IN");
@@ -273,13 +289,23 @@ function clearArticle() {
   el("article-content").replaceChildren();
   el("original").hidden = true;
   el("original").removeAttribute("href");
+  el("article-status").hidden = true;
+  el("connections").replaceChildren();
+  el("connections").hidden = true;
+}
+
+function storyMeta(story) {
+  const readingTime = story.reading_minutes > 0 ? `About ${story.reading_minutes} min read` : "";
+  return [story.kind === "briefing_summary" ? "NewsBlur summary" : "", story.feed_title, story.author, story.date, readingTime, story.saved ? "Saved" : ""].filter(Boolean).join(" · ");
 }
 
 function selectStory(story) {
+  state.articleRequest?.abort();
+  el("article-status").hidden = true;
   state.story = story.hash;
   message("article-title", story.title || "Untitled story");
-  message("article-feed", state.feed.title);
-  message("article-meta", [story.author, story.date, story.saved ? "Saved" : ""].filter(Boolean).join(" · "));
+  message("article-feed", story.feed_title || state.feeds.get(story.feed_id)?.title || state.feed?.title || "NewsBlur");
+  message("article-meta", storyMeta(story));
   // This is the sole HTML insertion point. /api/feeds/{id}/stories emits HTML
   // only after applying the server-owned article sanitizer allowlist.
   el("article-content").innerHTML = story.html;
@@ -292,6 +318,7 @@ function selectStory(story) {
   el("original").hidden = !original;
   if (original) el("original").href = original;
   else el("original").removeAttribute("href");
+  renderConnections(story);
   for (const button of el("stories").querySelectorAll("button")) button.setAttribute("aria-current", String(button.dataset.hash === story.hash));
   el("article-title").focus();
 }
@@ -308,7 +335,7 @@ function renderStories() {
     const title = document.createElement("strong");
     title.textContent = story.title || "Untitled story";
     const meta = document.createElement("small");
-    meta.textContent = [story.author, story.date, story.saved ? "Saved" : ""].filter(Boolean).join(" · ");
+    meta.textContent = storyMeta(story);
     button.append(title, meta);
     button.addEventListener("click", () => selectStory(story));
     row.append(button);
@@ -317,7 +344,63 @@ function renderStories() {
   el("stories").replaceChildren(list);
 }
 
-async function loadStories(feed, page) {
+function renderConnections(story) {
+  const panel = el("connections");
+  panel.replaceChildren();
+  const relatedHashes = new Set();
+  function group(title, items, scope = "") {
+    const unique = new Map(items.filter((item) => item.hash && item.hash !== story.hash).map((item) => [item.hash, item]));
+    if (!unique.size) return;
+    const heading = document.createElement("h2");
+    heading.textContent = title;
+    panel.append(heading);
+    if (scope) {
+      const explanation = document.createElement("p");
+      explanation.textContent = scope;
+      panel.append(explanation);
+    }
+    const list = document.createElement("ul");
+    for (const item of [...unique.values()].slice(0, 50)) {
+      const row = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = [item.title || "Untitled story", item.feed_title].filter(Boolean).join(" · ");
+      button.addEventListener("click", () => loadLinkedStory(item));
+      row.append(button);
+      list.append(row);
+    }
+    panel.append(list);
+  }
+  for (const item of story.related || []) relatedHashes.add(item.hash);
+  group(story.kind === "briefing_summary" ? "Briefing source stories" : "Related coverage from NewsBlur", story.related || []);
+  const visible = state.stories.some((item) => item.hash === story.hash) ? state.stories : [...state.stories, story];
+  const links = getRelationBuckets(pageRelations(visible), story.hash);
+  group("Links to stories on this page", links.referencing.filter((item) => !relatedHashes.has(item.hash)), "These articles are explicitly linked in the story above.");
+  group("Linked from stories on this page", links.referenced, "These loaded articles link to this story; this is not a search of all your feeds.");
+  panel.hidden = !panel.childElementCount;
+}
+
+async function loadLinkedStory(reference) {
+  const cached = state.stories.find((story) => story.hash === reference.hash);
+  if (cached) { selectStory(cached); return; }
+  state.articleRequest?.abort();
+  const controller = new AbortController();
+  state.articleRequest = controller;
+  const epoch = state.epoch;
+  message("article-status", "Loading linked story...");
+  el("article-status").hidden = false;
+  try {
+    const story = await api(`/api/stories/${encodeURIComponent(reference.hash)}`, { signal: controller.signal });
+    if (epoch !== state.epoch || controller.signal.aborted) return;
+    story.feed_title ||= reference.feed_title || state.feeds.get(story.feed_id)?.title || "NewsBlur";
+    selectStory(story);
+  } catch (error) {
+    if (epoch === state.epoch && !controller.signal.aborted) await readingError(error, "article-status");
+  }
+}
+
+async function loadReadingPage(selection) {
+  const { kind, feed, page } = selection;
   state.storyRequest?.abort();
   const controller = new AbortController();
   state.storyRequest = controller;
@@ -325,12 +408,15 @@ async function loadStories(feed, page) {
   el("stories").setAttribute("aria-busy", "true");
   el("previous").disabled = true;
   el("next").disabled = true;
-  message("story-status", `Loading ${feed.title}...`);
+  const title = kind === "briefing" ? "Daily Briefing" : feed.title;
+  message("story-status", `Loading ${title}...`);
   try {
-    const result = await api(`/api/feeds/${feed.id}/stories?page=${page}`, { signal: controller.signal });
+    const path = kind === "briefing" ? `/api/briefing?page=${page}` : `/api/feeds/${feed.id}/stories?page=${page}`;
+    const result = await api(path, { signal: controller.signal });
     if (epoch !== state.epoch || controller.signal.aborted) return;
-    const changed = state.feed?.id !== feed.id || state.page !== page;
-    state.feed = feed;
+    const changed = state.view !== kind || state.feed?.id !== feed?.id || state.page !== page;
+    state.feed = feed || null;
+    state.view = kind;
     state.page = page;
     state.stories = result.stories;
     if (changed) clearArticle();
@@ -340,9 +426,15 @@ async function loadStories(feed, page) {
       else clearArticle();
     }
     renderFeeds();
-    message("stories-heading", feed.title);
+    message("stories-heading", title);
     renderStories();
-    message("story-status", result.stories.length ? `${result.stories.length} stories` : result.can_continue ? "No visible stories on this page. Try the next page." : "No more stories in this feed.");
+    const briefingStates = {
+      unsupported: "Daily Briefing is not available on this NewsBlur server.",
+      disabled: "Daily Briefing is turned off in NewsBlur. Enable it there to receive summaries.",
+      empty: "No briefing is available yet. Check back after NewsBlur creates one.",
+    };
+    const ready = result.stories.length ? `${result.stories.length} stories${result.preview ? " · NewsBlur preview" : ""}` : result.can_continue ? "No visible stories on this page. Try the next page." : "No more stories in this feed.";
+    message("story-status", kind === "briefing" && briefingStates[result.state] ? briefingStates[result.state] : ready);
     message("page-label", `Page ${page}`);
     el("previous").hidden = page <= 1;
     el("next").hidden = !result.can_continue;
@@ -357,8 +449,25 @@ async function loadStories(feed, page) {
   }
 }
 
-el("previous").addEventListener("click", () => state.feed && loadStories(state.feed, state.page - 1));
-el("next").addEventListener("click", () => state.feed && loadStories(state.feed, state.page + 1));
+el("previous").addEventListener("click", () => loadReadingPage({ kind: state.view, feed: state.feed, page: state.page - 1 }));
+el("next").addEventListener("click", () => loadReadingPage({ kind: state.view, feed: state.feed, page: state.page + 1 }));
 window.addEventListener("offline", () => notice("You are offline. Your current view will stay here; retry when the connection returns."));
 window.addEventListener("online", () => notice("Connection restored. Refresh when you are ready."));
+
+function moveStory(direction) {
+  if (!state.stories.length) return;
+  const current = state.stories.findIndex((story) => story.hash === state.story);
+  const next = current < 0 ? (direction > 0 ? 0 : state.stories.length - 1) : current + direction;
+  if (next >= 0 && next < state.stories.length) selectStory(state.stories[next]);
+}
+
+const keyboard = new KeyboardHandler(() => state.session?.authenticated && !el("reader").hidden);
+keyboard.on("j", () => moveStory(1));
+keyboard.on("k", () => moveStory(-1));
+keyboard.on("v", () => { if (!el("original").hidden) el("original").click(); });
+keyboard.on("g f", () => (el("feed-tree").querySelector(".feed[aria-current='true']") || el("feed-tree").querySelector(".feed"))?.focus());
+keyboard.on("g s", () => (el("stories").querySelector(".story[aria-current='true']") || el("stories").querySelector(".story"))?.focus());
+keyboard.on("?", () => el("shortcuts").showModal());
+keyboard.listen();
+el("show-shortcuts").addEventListener("click", () => el("shortcuts").showModal());
 connect();

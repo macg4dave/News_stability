@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <title>News Stability</title>
   <link rel="stylesheet" href="/reader.css">
+  <link rel="stylesheet" href="/themes.css">
   <script type="module" src="/reader.js"></script>
 </head>
 <body>
@@ -13,7 +14,8 @@
   <header class="masthead">
     <a class="brand" href="/">News <strong>Stability</strong></a>
     <span class="tagline">A quieter place to read</span>
-    <div id="account" hidden><span id="username"></span><button id="logout" type="button">Sign out</button></div>
+    <button id="show-appearance" type="button" aria-haspopup="dialog">Appearance</button>
+    <div id="account" hidden><span id="username"></span><button id="show-shortcuts" type="button" aria-haspopup="dialog">Keyboard shortcuts</button><button id="logout" type="button">Sign out</button></div>
   </header>
   <main id="main" tabindex="-1">
     <section id="signin" class="signin" aria-labelledby="signin-heading">
@@ -34,6 +36,7 @@
     <section id="reader" class="reader" aria-label="News reader" hidden>
       <aside class="subscriptions" aria-labelledby="feeds-heading">
         <div class="panel-heading"><h2 id="feeds-heading">Your feeds</h2><button id="refresh" type="button">Refresh</button></div>
+        <button id="daily-briefing" class="briefing-link" type="button">Daily Briefing</button>
         <p id="feed-status" class="panel-status" role="status"></p>
         <nav id="feed-tree" aria-label="Feed folders"></nav>
       </aside>
@@ -47,13 +50,41 @@
         <p class="eyebrow" id="article-feed">SETTLE IN</p>
         <h1 id="article-title" tabindex="-1">A little space for the stories that matter.</h1>
         <p id="article-meta" class="muted">Choose a feed, then a story to start reading.</p>
+        <p id="article-status" role="status" hidden></p>
         <a id="original" target="_blank" rel="noopener noreferrer" hidden>Read the original</a>
         <div id="article-content" class="article-content"></div>
+        <section id="connections" class="connections" aria-label="Linked stories" hidden></section>
       </article>
     </section>
     <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
   </main>
-  <footer>Powered by <a href="https://www.newsblur.com/" rel="noopener noreferrer" target="_blank">NewsBlur</a>. Built for reading.</footer>
+  <dialog id="appearance" aria-labelledby="appearance-heading">
+    <h2 id="appearance-heading">Reading appearance</h2>
+    <p class="muted">Choose a comfortable background and article text. Saved only on this browser.</p>
+    <div class="appearance-controls">
+      <label for="appearance-theme">Background</label>
+      <select id="appearance-theme"><option value="system">Follow system</option><option value="light">Light</option><option value="paper">Warm paper</option><option value="dark">Dark</option></select>
+      <label for="appearance-font">Article font</label>
+      <select id="appearance-font"><option value="serif">Serif</option><option value="sans">Sans serif</option></select>
+      <label for="appearance-size">Article text size</label>
+      <select id="appearance-size"><option value="normal">Normal</option><option value="large">Large</option><option value="larger">Larger</option></select>
+    </div>
+    <form method="dialog"><button autofocus>Done</button></form>
+  </dialog>
+  <dialog id="shortcuts" aria-labelledby="shortcuts-heading">
+    <h2 id="shortcuts-heading">Keyboard shortcuts</h2>
+    <dl class="shortcuts">
+      <dt><kbd>j</kbd> / <kbd>k</kbd></dt><dd>Next / previous story on this page</dd>
+      <dt><kbd>v</kbd></dt><dd>Open the original story in a new tab</dd>
+      <dt><kbd>g</kbd> then <kbd>f</kbd></dt><dd>Focus the feed list</dd>
+      <dt><kbd>g</kbd> then <kbd>s</kbd></dt><dd>Focus the story list</dd>
+      <dt><kbd>?</kbd></dt><dd>Show this help</dd>
+      <dt><kbd>Escape</kbd></dt><dd>Close this help</dd>
+    </dl>
+    <p class="muted">Shortcuts pause while typing or selecting text. Moving between stories does not mark them read.</p>
+    <form method="dialog"><button autofocus>Close</button></form>
+  </dialog>
+  <footer>Powered by <a href="https://www.newsblur.com/" rel="noopener noreferrer" target="_blank">NewsBlur</a>. Built for reading. <a href="/third-party-notices.txt">Open-source notices</a></footer>
   <noscript><p class="notice">Enable JavaScript to sign in and read your feeds.</p></noscript>
 </body>
 </html>

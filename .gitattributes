@@ -1,0 +1,3 @@
+# Preserve the exact license bytes recorded by the manifest across platforms.
+licenses/** -text
+web/third-party-notices.txt text eol=lf

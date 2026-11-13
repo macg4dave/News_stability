@@ -9,7 +9,8 @@ Current source includes login/logout, server-side sessions, CSRF checks, nested
 feed navigation, paginated stories, and sanitized article presentation. The new
 flow compiles but its combined tests and installed-server acceptance remain
 pending. The frontend uses native JavaScript/CSS, with no frontend build step.
-Read/unread, save/unsave, and Daily Briefing views remain planned.
+A candidate Daily Briefing view reads NewsBlur summaries and source stories.
+Read/unread and save/unsave actions remain planned.
 
 ## Documentation
 
@@ -17,6 +18,8 @@ Read/unread, save/unsave, and Daily Briefing views remain planned.
 - [Development and configuration](docs/development.md)
 - [Frontend source and build/debug flow](docs/frontend.md)
 - [Session design](docs/sessions.md)
+- [Open-source reuse review](docs/open-source-reuse.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
 - [Debugging: Go, VS Code, Docker](docs/debugging.md)
 - [Roadmap and milestone acceptance](docs/roadmap.md)
 - [Blockers and unverified dependencies](docs/blockers.md)
@@ -88,3 +91,15 @@ or requiring credentials. The new complete authentication/reading test pass rema
 
 Development binds to loopback by default. This HTTP setup is for local work;
 configure HTTPS before exposing authenticated reader traffic beyond your machine.
+
+## Open-source attribution
+
+Reading-time estimation and keyboard dispatch adapt Miniflux code (Apache-2.0).
+The keyboard typing guard adapts Fusion code (MIT). Full licenses, retained
+copyrights, pinned revisions, modification notices, and Go dependency notices
+are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The reader footer exposes
+the full notices, and the Go container ships the license directory.
+
+Shiori (MIT) theme logic and Memos (MIT) paper colors/reference buckets add
+appearance controls and linked-reading presentation. Briefing summaries and
+related-story groupings are provided by NewsBlur; installed acceptance remains open.

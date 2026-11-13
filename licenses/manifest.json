@@ -1,0 +1,135 @@
+[
+  {
+    "component": "github.com/aymerick/douceur",
+    "version": "v0.2.0",
+    "source_file": "LICENSE",
+    "file": "licenses/github.com_aymerick_douceur_v0.2.0--LICENSE",
+    "sha256": "a91ec19456c4efb3d9fc22dc9c1ec60ec3701a9e8f4be511ebcf908c04288ffb"
+  },
+  {
+    "component": "github.com/gorilla/css",
+    "version": "v1.0.1",
+    "source_file": "LICENSE",
+    "file": "licenses/github.com_gorilla_css_v1.0.1--LICENSE",
+    "sha256": "af11d643d903cb178a641d7512879285287844f7a6c0611e2d0c6b131e50188b"
+  },
+  {
+    "component": "github.com/microcosm-cc/bluemonday",
+    "version": "v1.0.27",
+    "source_file": "LICENSE.md",
+    "file": "licenses/github.com_microcosm-cc_bluemonday_v1.0.27--LICENSE.md",
+    "sha256": "a8e8489f1168b5f3e0ebb43d7fe1c78a2fd7db9939c1a6cb555940a4b631f8d2"
+  },
+  {
+    "component": "golang.org/x/crypto",
+    "version": "v0.58.0",
+    "source_file": "LICENSE",
+    "file": "licenses/golang.org_x_crypto_v0.58.0--LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+  },
+  {
+    "component": "golang.org/x/crypto",
+    "version": "v0.58.0",
+    "source_file": "PATENTS",
+    "file": "licenses/golang.org_x_crypto_v0.58.0--PATENTS",
+    "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+  },
+  {
+    "component": "golang.org/x/net",
+    "version": "v0.62.0",
+    "source_file": "LICENSE",
+    "file": "licenses/golang.org_x_net_v0.62.0--LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+  },
+  {
+    "component": "golang.org/x/net",
+    "version": "v0.62.0",
+    "source_file": "PATENTS",
+    "file": "licenses/golang.org_x_net_v0.62.0--PATENTS",
+    "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+  },
+  {
+    "component": "golang.org/x/sys",
+    "version": "v0.49.0",
+    "source_file": "LICENSE",
+    "file": "licenses/golang.org_x_sys_v0.49.0--LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+  },
+  {
+    "component": "golang.org/x/sys",
+    "version": "v0.49.0",
+    "source_file": "PATENTS",
+    "file": "licenses/golang.org_x_sys_v0.49.0--PATENTS",
+    "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+  },
+  {
+    "component": "golang.org/x/term",
+    "version": "v0.47.0",
+    "source_file": "LICENSE",
+    "file": "licenses/golang.org_x_term_v0.47.0--LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+  },
+  {
+    "component": "golang.org/x/term",
+    "version": "v0.47.0",
+    "source_file": "PATENTS",
+    "file": "licenses/golang.org_x_term_v0.47.0--PATENTS",
+    "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+  },
+  {
+    "component": "golang.org/x/text",
+    "version": "v0.43.0",
+    "source_file": "LICENSE",
+    "file": "licenses/golang.org_x_text_v0.43.0--LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+  },
+  {
+    "component": "golang.org/x/text",
+    "version": "v0.43.0",
+    "source_file": "PATENTS",
+    "file": "licenses/golang.org_x_text_v0.43.0--PATENTS",
+    "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+  },
+  {
+    "component": "Go standard library",
+    "version": "build toolchain",
+    "source_file": "LICENSE",
+    "file": "licenses/Go_standard_library_build_toolchain--LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+  },
+  {
+    "component": "Go standard library",
+    "version": "build toolchain",
+    "source_file": "PATENTS",
+    "file": "licenses/Go_standard_library_build_toolchain--PATENTS",
+    "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+  },
+  {
+    "component": "miniflux/v2",
+    "revision": "fb043227ef6ad98569c848e8cdade0d237dab87e",
+    "source_file": "LICENSE",
+    "file": "licenses/Miniflux-Apache-2.0.txt",
+    "sha256": "809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0"
+  },
+  {
+    "component": "0x2E/fusion",
+    "revision": "c31ade09b481fa877633899e8cf5d4c86a72c4f9",
+    "source_file": "LICENSE",
+    "file": "licenses/Fusion-MIT.txt",
+    "sha256": "a9d530c9a5ed5d894d815d9d04759a88a6b06925f5c1a405170057ce0a7a18d7"
+  },
+  {
+    "component": "go-shiori/shiori",
+    "revision": "aebb4021a56048eed4c8feb325399be5f46e5470",
+    "source_file": "LICENSE",
+    "file": "licenses/Shiori-MIT.txt",
+    "sha256": "581e64b831f13fa657522658a3868ebf8aad638ee274192f863360c289c1e3b0"
+  },
+  {
+    "component": "usememos/memos",
+    "revision": "30f8bad87d586228381c54beea686162cd8c5265",
+    "source_file": "LICENSE",
+    "file": "licenses/Memos-MIT.txt",
+    "sha256": "225e7b019417d1e7afba65d09fe62864dea887dfec60d9343097d7dc25d2f8d4"
+  }
+]

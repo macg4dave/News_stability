@@ -1,0 +1,72 @@
+package newsblur
+
+import "encoding/json"
+
+// wireStory is shared by feed, individual-story, and briefing reads. Its raw
+// HTML never leaves this package through JSON; presentation sanitizes Content.
+type wireStory struct {
+	Hash      string `json:"story_hash"`
+	Title     string `json:"story_title"`
+	Author    string `json:"story_authors"`
+	Date      string `json:"story_date"`
+	URL       string `json:"story_permalink"`
+	Content   string `json:"story_content"`
+	Read      int    `json:"read_status"`
+	Saved     bool   `json:"starred"`
+	FeedID    int    `json:"story_feed_id"`
+	FeedTitle string `json:"feed_title"`
+	Cluster   []struct {
+		Hash      string `json:"story_hash"`
+		Title     string `json:"story_title"`
+		FeedTitle string `json:"feed_title"`
+	} `json:"cluster_stories"`
+}
+
+func (s wireStory) story() (Story, error) {
+	if s.Hash == "" {
+		return Story{}, ErrInvalidResponse
+	}
+	related := make([]RelatedStory, 0)
+	seen := map[string]bool{s.Hash: true}
+	for _, item := range s.Cluster {
+		if item.Hash == "" || seen[item.Hash] {
+			continue
+		}
+		seen[item.Hash] = true
+		related = append(related, RelatedStory{Hash: item.Hash, Title: item.Title, FeedTitle: item.FeedTitle})
+		if len(related) == 50 {
+			break
+		}
+	}
+	return Story{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, URL: s.URL, Content: s.Content, Read: s.Read == 1, Saved: s.Saved, FeedID: s.FeedID, FeedTitle: s.FeedTitle, Related: related}, nil
+}
+
+func decodeStoryPage(body []byte, page int) (StoryPage, error) {
+	var result struct {
+		Authenticated *bool       `json:"authenticated"`
+		Code          *int        `json:"code"`
+		Hidden        int         `json:"hidden_stories_count"`
+		Stories       []wireStory `json:"stories"`
+	}
+	if json.Unmarshal(body, &result) != nil {
+		return StoryPage{}, ErrInvalidResponse
+	}
+	if result.Authenticated != nil && !*result.Authenticated {
+		return StoryPage{}, ErrSessionExpired
+	}
+	if result.Code != nil && *result.Code < 0 {
+		return StoryPage{}, ErrRejected
+	}
+	if result.Stories == nil || result.Hidden < 0 {
+		return StoryPage{}, ErrInvalidResponse
+	}
+	output := StoryPage{Stories: make([]Story, 0, len(result.Stories)), Page: page, Hidden: result.Hidden}
+	for _, value := range result.Stories {
+		s, err := value.story()
+		if err != nil {
+			return StoryPage{}, err
+		}
+		output.Stories = append(output.Stories, s)
+	}
+	return output, nil
+}

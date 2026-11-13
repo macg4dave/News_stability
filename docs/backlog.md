@@ -11,10 +11,10 @@ Move delivered work out of the active list and update the roadmap.
 | P03 | P0 | M1 | Transport wired into reader source, including CSRF bootstrap and private CA roots; candidate feed/story adapters added; combined test pass and installed acceptance pending | P02 |
 | P04 | P0 | M1 | [Session/login/logout and CSRF source](sessions.md) implemented; passthrough removed; expiry, invalid login, secure cookies, and full-flow tests pending | P02, P03 |
 | P05 | P0 | M2 | Source implemented: folders/feeds and unread counts with loading, empty, offline, and session-expired UI; combined tests/acceptance pending | P01, P04 |
-| P06 | P0 | M2 | Source implemented: story pagination, article view, maintained sanitizer, safe links; hostile-markup, pagination, and browser tests pending | P05 |
+| P06 | P0 | M2 | Source implemented: story pagination, article view, maintained sanitizer, safe links; NewsBlur-related coverage and loaded-page hyperlink/backlink navigation added; hostile-markup, pagination, link, and browser tests pending | P05 |
 | P07 | P0 | M2 | Read/unread and saved-story actions; rollback/report upstream failure and avoid automatic write retries | P06 |
-| P08 | P1 | M3 | Daily Briefing view, availability detection, source-story navigation, and pending/error/unsupported states | P02, P06 |
-| P09 | P1 | M4 | Keyboard navigation, mobile layouts, visible focus, semantic controls, and light/dark themes | M2 |
+| P08 | P1 | M3 | Source implemented: read-only NewsBlur briefing summaries, curated source links, preview/disabled/empty/unsupported/error states; installed contract, explicit generation-progress detection, and acceptance remain | P02, P06 |
+| P09 | P1 | M4 | Source now includes Miniflux/Fusion-derived keyboard navigation, help dialog, mobile layouts, visible focus, semantic controls, and system/light/dark/paper backgrounds with font/size controls; browser/accessibility verification remains | M2 |
 | P10 | P1 | M4 | Use NewsBlur search, intelligence filters, saved stories, and tags where installed API supports them | P02, M2 |
 | P11 | P1 | M5 | Browser-level reading/session smoke tests, manual accessibility review, and real-server acceptance checklist | M2, M3 |
 | P12 | P1 | M5 | HTTPS/reverse-proxy deployment and session review; document upgrade/recovery and container image update policy | M1, B01 |

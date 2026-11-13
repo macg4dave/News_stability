@@ -46,7 +46,8 @@ never receives NewsBlur cookies and never chooses an upstream URL.
 `GET /api/session` bootstraps a session and CSRF token. Login/logout require the
 reader cookie, `X-CSRF-Token`, and matching Origin. `GET /api/feeds` returns adapted
 folder navigation; `GET /api/feeds/{id}/stories?page=1` returns a sanitized story
-page. See [session design](sessions.md) for expiry and error semantics.
+page. `/api/briefing?page=1` reads existing NewsBlur summaries;
+`/api/stories/{hash}` reads an identified source/related story. See [session design](sessions.md) for expiry and error semantics.
 
 Health is liveness only; it does not probe NewsBlur. The Go container has no
 published host port. Nginx waits for Go health. Go shutdown drains for up to ten
@@ -78,3 +79,12 @@ then perform browser review. The Compose integration stack uses an unreachable
 synthetic origin and covers static/proxy/unauthenticated boundaries; it cannot
 prove authenticated behavior. Never use real subscriptions or login credentials
 as routine fixtures. Installed version and test-account acceptance remain B02.
+
+## Third-party notice maintenance
+
+After Go module or attribution changes, run `go mod download all`, then
+`python scripts/update_notices.py`. Check freshness with
+`python scripts/update_notices.py --check`. The generator copies full license,
+notice, and patent files into `licenses/`, records SHA-256 digests, and builds
+`web/third-party-notices.txt`. Review new terms before incorporating new code.
+See [reuse review](open-source-reuse.md) and [notices](../THIRD_PARTY_NOTICES.md).

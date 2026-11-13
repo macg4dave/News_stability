@@ -91,3 +91,23 @@ The source pass on 2026-11-13 adds reader sessions, login/logout, feed/story rou
 a maintained HTML sanitizer, and the first responsive reader UI. Go build and
 JavaScript syntax checks pass. Test execution for this larger slice is deferred;
 the earlier transport tests do not establish correctness of the integrated flow.
+
+## Briefing and linked-story source follow-up
+
+Upstream source at commit `9aae0792a92e9ba6a329e41ee80db8dae246631e` was inspected
+on 2026-11-13. `apps/briefing/views.py` returns `briefings` with `summary_story`
+and `curated_stories`, plus `enabled`, `is_preview`, and `has_next_page` flags.
+`apps/clustering/models.py` attaches `cluster_stories` metadata where available.
+This is upstream evidence, not installed-version or account acceptance.
+
+Candidate Go adapters now expose read-only `/api/briefing?page=1` and
+`/api/stories/{hash}`. The latter uses `/reader/river_stories?h=...` and requires
+the returned hash to match. Every response uses the common sanitized article
+presenter. Related metadata is capped at 50 members; explicit hyperlinks at 100.
+The reader never follows those URLs on the server. No source story database,
+local clustering, summary generation, or briefing preference writes are added.
+
+HTTP 404/405 briefing routes map to unsupported; disabled/empty responses are
+presented explicitly. No pending-generation state is inferred from an empty
+response. Login/session, briefing shape/availability, clustered-story permissions,
+and browser behavior still need the deferred acceptance/test pass.

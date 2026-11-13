@@ -11,7 +11,7 @@ session's CSRF token, and in-flight requests. It never writes credentials,
 cookies, feeds, or articles to localStorage, sessionStorage, or IndexedDB.
 `web/reader.css` provides wide and narrow layouts, visible focus, and system
 light/dark colors. Native buttons and disclosure controls provide basic keyboard
-operation. Dedicated reader shortcuts and accessibility/browser review remain open.
+operation. Reader shortcuts are now implemented; accessibility/browser review remains open.
 
 ## Development
 
@@ -44,3 +44,39 @@ The static server also supplies a restrictive Content Security Policy.
 This is implemented source, not a browser-verified or accessible-release claim.
 The test pass and installed-server acceptance are deliberately deferred while the
 larger implementation slice is being built.
+
+## Reused reading features
+
+The Miniflux/Fusion adaptations add j/k story navigation, v for the original,
+g then f/s for feed/story focus, and ? for keyboard help. Shortcuts pause while
+typing, composing text, selecting text, or using a modal. Navigation never marks
+stories read. Story metadata shows a reading-time estimate based on sanitized
+article text, including CJK character-count handling. See the [reuse review](open-source-reuse.md)
+for pinned source revisions, changes, and license records.
+
+The footer links `/third-party-notices.txt`, which includes full license texts.
+Regenerate this bundle with `python scripts/update_notices.py` after notice or
+module changes. No runtime network lookup or external script is used.
+
+## Appearance and connected reading
+
+The Appearance dialog works before and after sign-in. Shiori-derived theme logic
+and Memos-derived paper colors provide system/light/dark/warm-paper backgrounds,
+serif/sans-serif article fonts, and three text sizes. Only allowlisted display
+preferences persist under `news-stability-appearance-v1` in localStorage. Blocked
+storage leaves the controls usable for the tab; no account/story data is saved.
+The source does not claim that contrast or accessibility has been audited.
+
+Daily Briefing reads NewsBlur summaries and curated source stories. Its page shows
+ready, preview, disabled, empty, unsupported, and failed states as the inspected
+contract permits. No local summary or AI generation is performed, and no generation
+or preference-write endpoint is exposed. An empty response is not labeled pending
+because the inspected API supplies no explicit generation-progress field.
+
+Article connections separate NewsBlur cluster metadata from actual hyperlinks
+among loaded stories. Memos-derived relation buckets show outgoing links and
+backlinks on the current page. Linked stories already loaded open immediately;
+other NewsBlur references use a fixed story-hash read endpoint. The same sanitizer
+and safe-link policy apply to feed, briefing, and individual-story output.
+Network failures preserve the current article and reading page. The inspected
+upstream contracts still require installed-server acceptance and browser tests.

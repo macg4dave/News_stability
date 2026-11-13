@@ -2,23 +2,39 @@ package newsblur
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 )
 
 // Story contains source data for the reader adapter. Content is deliberately
 // excluded from JSON: only the HTTP presentation layer may emit sanitized HTML.
 type Story struct {
-	Hash    string `json:"story_hash"`
-	Title   string `json:"story_title"`
-	Author  string `json:"story_authors"`
-	Date    string `json:"story_date"`
-	URL     string `json:"story_permalink"`
-	Content string `json:"-"`
-	Read    bool   `json:"read"`
-	Saved   bool   `json:"starred"`
+	Hash      string         `json:"story_hash"`
+	Title     string         `json:"story_title"`
+	Author    string         `json:"story_authors"`
+	Date      string         `json:"story_date"`
+	URL       string         `json:"story_permalink"`
+	Content   string         `json:"-"`
+	Read      bool           `json:"read"`
+	Saved     bool           `json:"starred"`
+	FeedID    int            `json:"-"`
+	FeedTitle string         `json:"-"`
+	Related   []RelatedStory `json:"-"`
+	Kind      string         `json:"-"`
 }
+
+// RelatedStory is a source story or cluster member identified by NewsBlur.
+type RelatedStory struct {
+	Hash      string `json:"hash"`
+	Title     string `json:"title"`
+	FeedTitle string `json:"feed_title,omitempty"`
+}
+
+// ErrStoryNotFound means NewsBlur did not return the requested story.
+var ErrStoryNotFound = errors.New("NewsBlur story not found")
 
 // StoryPage retains pagination position and upstream hidden-story information.
 type StoryPage struct {
@@ -37,39 +53,27 @@ func (c *Client) Stories(ctx context.Context, feedID, page int) (StoryPage, erro
 	if err != nil {
 		return StoryPage{}, sessionError(err)
 	}
-	var result struct {
-		Authenticated *bool `json:"authenticated"`
-		Code          *int  `json:"code"`
-		Hidden        int   `json:"hidden_stories_count"`
-		Stories       []struct {
-			Hash    string `json:"story_hash"`
-			Title   string `json:"story_title"`
-			Author  string `json:"story_authors"`
-			Date    string `json:"story_date"`
-			URL     string `json:"story_permalink"`
-			Content string `json:"story_content"`
-			Read    int    `json:"read_status"`
-			Saved   bool   `json:"starred"`
-		} `json:"stories"`
+	return decodeStoryPage(body, page)
+}
+
+// StoryByHash follows a NewsBlur-supplied reference through its documented
+// river endpoint. The browser cannot choose an upstream URL or arbitrary path.
+func (c *Client) StoryByHash(ctx context.Context, hash string) (Story, error) {
+	if len(hash) > 256 || strings.IndexByte(hash, ':') < 1 || strings.ContainsAny(hash, "/\\\r\n") {
+		return Story{}, ErrStoryNotFound
 	}
-	if json.Unmarshal(body, &result) != nil {
-		return StoryPage{}, ErrInvalidResponse
+	body, err := c.request(ctx, http.MethodGet, "/reader/river_stories?h="+url.QueryEscape(hash), nil)
+	if err != nil {
+		return Story{}, sessionError(err)
 	}
-	if result.Authenticated != nil && !*result.Authenticated {
-		return StoryPage{}, ErrSessionExpired
+	result, err := decodeStoryPage(body, 1)
+	if err != nil {
+		return Story{}, err
 	}
-	if result.Code != nil && *result.Code < 0 {
-		return StoryPage{}, ErrRejected
-	}
-	if result.Stories == nil || result.Hidden < 0 {
-		return StoryPage{}, ErrInvalidResponse
-	}
-	output := StoryPage{Stories: make([]Story, 0, len(result.Stories)), Page: page, Hidden: result.Hidden}
 	for _, s := range result.Stories {
-		if s.Hash == "" {
-			return StoryPage{}, ErrInvalidResponse
+		if s.Hash == hash {
+			return s, nil
 		}
-		output.Stories = append(output.Stories, Story{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, URL: s.URL, Content: s.Content, Read: s.Read == 1, Saved: s.Saved})
 	}
-	return output, nil
+	return Story{}, ErrStoryNotFound
 }

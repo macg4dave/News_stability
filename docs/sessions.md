@@ -48,3 +48,6 @@ browser Origin headers through the reverse proxy. The Nginx entry point forwards
 only explicit `/api/` reader routes and no longer forwards `/newsblur/` requests.
 Rate limiting and deployment/session security review remain release work; this
 development implementation is not ready for public exposure.
+
+Appearance preferences alone may persist in browser localStorage. Session, CSRF,
+credentials, subscriptions, and article data are never persisted there.
