@@ -18,7 +18,7 @@ export function initializeLayout() {
     if (!layouts.includes(control.value)) return;
     // Keep a visible story at the same viewport position as its shape changes.
     // Existing DOM nodes, focus, selection, and all request state stay intact.
-    const anchor = [...stories.children].find((row) => {
+    const anchor = reader.classList.contains("article-open") ? null : [...stories.children].find((row) => {
       const box = row.getBoundingClientRect();
       return box.bottom > 0 && box.top < innerHeight;
     });

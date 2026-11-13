@@ -47,8 +47,18 @@ try {
     }
 
     Write-Host 'Building and starting the reader preview...'
-    & docker compose up --build --detach --wait --wait-timeout $WaitTimeout web
-    if ($LASTEXITCODE -ne 0) {
+    # Windows PowerShell treats redirected native stderr as ErrorRecords.
+    # Compose writes ordinary build progress there; judge failure by exit code.
+    try {
+        $ErrorActionPreference = 'Continue'
+        & docker compose up --build --detach --wait --wait-timeout $WaitTimeout web 2>&1 |
+            ForEach-Object { Write-Host "$_" }
+        $composeExitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = 'Stop'
+    }
+    if ($composeExitCode -ne 0) {
         throw 'Preview did not become healthy. Inspect it with: docker compose ps; docker compose logs --tail 80 app web'
     }
 

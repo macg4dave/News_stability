@@ -24,6 +24,14 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+      - run: npm run review:ui
+      - name: Upload synthetic visual review
+        uses: actions/upload-artifact@v4
+        with:
+          name: reader-visual-review
+          path: .local/ui-review/
+          include-hidden-files: true
+          retention-days: 7
       - name: Check third-party notices
         run: |
           go mod download all
@@ -32,6 +40,11 @@ jobs:
       - run: docker compose config --quiet
       - run: docker compose -f compose.yaml -f compose.test.yaml --profile test config --quiet
       - run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --build --rm integration
+      - name: Verify distribution notices
+        run: |
+          docker build -t reader-license-app -f Dockerfile.reader .
+          docker build -t reader-license-web .
+          python scripts/check_packaged_notices.py --app-image reader-license-app --web-image reader-license-web
       - if: failure()
         run: docker compose -f compose.yaml -f compose.test.yaml --profile test logs
       - if: always()

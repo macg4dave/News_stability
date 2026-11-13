@@ -56,13 +56,17 @@
           <p class="muted">Search availability depends on your NewsBlur account.</p>
         </form>
         <p id="story-status" class="panel-status" role="status">Your latest stories will appear here.</p>
+          <p id="collection-updated" class="panel-status" hidden></p>
         <ul id="stories" class="stories"></ul>
-        <div class="pagination"><button id="previous" type="button" hidden>Previous page</button><span id="page-label"></span><button id="next" type="button" hidden>Next page</button></div>
+        <div id="stream-footer" class="stream-footer" hidden>
+          <p id="stream-status" role="status"></p>
+          <button id="load-more" type="button" hidden>Load more stories</button>
+        </div>
       </section>
       <article id="article" class="article" aria-labelledby="article-title">
         <button id="back-to-stories" class="back-to-stories" type="button" hidden>Back to stories</button>
         <p class="eyebrow" id="article-feed">SETTLE IN</p>
-        <h1 id="article-title" tabindex="-1">A little space for the stories that matter.</h1>
+          <h1 id="article-title" tabindex="-1" dir="auto">A little space for the stories that matter.</h1>
         <p id="article-meta" class="muted">Choose a feed, then a story to start reading.</p>
         <div id="story-actions" class="story-actions" hidden>
           <button id="toggle-read" type="button">Mark read</button>
@@ -71,7 +75,7 @@
         <p id="article-status" role="status" hidden></p>
         <p id="full-text-status" class="muted" role="status" hidden></p>
         <a id="original" target="_blank" rel="noopener noreferrer" hidden>Read the original</a>
-        <div id="article-content" class="article-content"></div>
+          <div id="article-content" class="article-content" dir="auto"></div>
         <section id="connections" class="connections" aria-label="Linked stories" hidden></section>
       </article>
     </section>
@@ -96,10 +100,10 @@
   <dialog id="shortcuts" aria-labelledby="shortcuts-heading">
     <h2 id="shortcuts-heading">Keyboard shortcuts</h2>
     <dl class="shortcuts">
-      <dt><kbd>j</kbd> / <kbd>k</kbd></dt><dd>Next / previous story on this page</dd>
+      <dt><kbd>j</kbd> / <kbd>k</kbd></dt><dd>Next / previous loaded story</dd>
       <dt><kbd>v</kbd></dt><dd>Open the original story in a new tab</dd>
       <dt><kbd>g</kbd> then <kbd>f</kbd></dt><dd>Focus the feed list</dd>
-      <dt><kbd>g</kbd> then <kbd>s</kbd></dt><dd>Focus the story list</dd>
+      <dt><kbd>g</kbd> then <kbd>s</kbd></dt><dd>Return to and focus the story list</dd>
       <dt><kbd>?</kbd></dt><dd>Show this help</dd>
       <dt><kbd>Escape</kbd></dt><dd>Close this help</dd>
     </dl>

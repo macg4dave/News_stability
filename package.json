@@ -2,7 +2,8 @@
   "name": "news-stability-checks",
   "private": true,
   "scripts": {
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "review:ui": "node scripts/review-ui.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.65.0"

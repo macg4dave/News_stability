@@ -1,51 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-const story = (hash = "1:abc", title = "Synthetic story") => ({ hash, title, html: "<p>Readable article text.</p>", excerpt: "Readable article text.", url: "https://example.invalid/story", read: false, saved: false, related: [], links: [], reading_minutes: 1 });
-
-async function fixture(page) {
-  const model = { authenticated: false, failAction: false, failRead: false, expired: false, actions: [], reads: [], textRequests: [], failText: false, fullTexts: {}, stories: [story(), story("1:def", "Second synthetic story")] };
-  await page.route("**/api/**", async (route) => {
-    const url = new URL(route.request().url());
-    const path = decodeURIComponent(url.pathname);
-    const reply = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
-    const session = () => ({ authenticated: model.authenticated, username: "fixture", csrf_token: "synthetic-csrf", expires_at: new Date(Date.now() + 3600000).toISOString() });
-    if (path === "/api/session") return reply(session());
-    if (path === "/api/login") { model.authenticated = true; return reply(session()); }
-    if (path === "/api/logout") { model.authenticated = false; return reply({ signed_out: true }); }
-    if (model.expired) { model.authenticated = false; return reply({ code: "session_expired", message: "Session expired." }, 401); }
-    if (path === "/api/feeds") return reply({ feeds: [{ id: 1, title: "Synthetic feed", positive: 1, neutral: 2 }], folders: [{ title: "Reading", children: [{ feed_id: 1 }] }] });
-    if (path.endsWith("/text")) {
-      const hash = path.split("/")[3];
-      model.textRequests.push(hash);
-      if (model.failText) return reply({ code: "full_text_unavailable", message: "Full text unavailable." }, 404);
-      const source = model.stories.find(item => item.hash === hash) || story(hash);
-      return reply({ hash, html: model.fullTexts[hash] ?? source.html, reading_minutes: 3, links: source.links, picture: source.picture });
-    }
-    if (path.endsWith("/state")) {
-      model.actions.push(route.request().postDataJSON().action);
-      if (model.failAction) return reply({ code: "action_rejected", message: "NewsBlur could not apply that action." }, 409);
-      return reply({ action: model.actions.at(-1) });
-    }
-    if (path === "/api/briefing") return reply({ stories: [], state: "unsupported", page: 1, can_continue: false });
-    if (path === "/api/saved") return reply({ stories: [story("1:saved", "Previously saved story")], page: 1, can_continue: false });
-    if (path === "/api/stories/1:linked") return reply(story("1:linked", "Linked synthetic story"));
-    if (path === "/api/feeds/1/stories") {
-      model.reads.push(url.searchParams);
-      if (model.failRead) return route.abort("failed");
-      const current = Number(url.searchParams.get("page") || 1);
-      return reply({ stories: current === 1 ? model.stories : [], page: current, can_continue: current === 1 });
-    }
-    throw new Error(`Unexpected synthetic API route: ${path}`);
-  });
-  // No routine browser test may contact NewsBlur or an external story site.
-  await page.route(/^https?:\/\/(?!127\.0\.0\.1:4173(?:\/|$))/, route => route.abort());
-  await page.goto("/");
-  await page.getByLabel("NewsBlur username").fill("fixture");
-  await page.getByLabel("Password", { exact: true }).fill("synthetic-password");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Synthetic feed" })).toBeVisible();
-  return model;
-}
+const { fixture, story } = require("./fixture.cjs");
 
 async function openStory(page) {
   await page.getByRole("button", { name: "Synthetic feed" }).click();
@@ -53,7 +8,7 @@ async function openStory(page) {
   await expect(page.locator("#article-content")).toContainText("Readable article text.");
 }
 
-test("read, save, pagination and logout", async ({ page }) => {
+test("read, save and logout", async ({ page }) => {
   const model = await fixture(page);
   await openStory(page);
   await page.getByRole("button", { name: "Mark read", exact: true }).click();
@@ -61,11 +16,7 @@ test("read, save, pagination and logout", async ({ page }) => {
   await page.getByRole("button", { name: "Save story", exact: true }).click();
   await expect(page.getByRole("button", { name: "Unsave story", exact: true })).toBeEnabled();
   expect(model.actions).toEqual(["read", "save"]);
-  await page.getByRole("button", { name: "Next page" }).click();
-  await expect(page.locator("#page-label")).toHaveText("Page 2");
-  await expect(page.locator("#article-content")).toBeEmpty();
-  await page.getByRole("button", { name: "Previous page" }).click();
-  await expect(page.locator("#page-label")).toHaveText("Page 1");
+  await page.getByRole("button", { name: "Back to stories", exact: true }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.locator("#reader")).toBeHidden();
   await expect(page.locator("#article-content")).toBeEmpty();
@@ -87,24 +38,32 @@ test("failed writes preserve story and state without retries", async ({ page }) 
 test("search and unread filters use NewsBlur and persist across pagination", async ({ page }) => {
   const model = await fixture(page);
   await openStory(page);
+  await page.getByRole("button", { name: "Back to stories", exact: true }).click();
   await page.getByLabel("Show", { exact: true }).selectOption("unread");
   await page.getByLabel("Search this feed").fill("cats & dogs");
+  model.hasMore = true;
   await page.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(page.locator("#article-content")).toBeEmpty();
-  await page.getByRole("button", { name: "Next page" }).click();
-  await expect(page.locator("#page-label")).toHaveText("Page 2");
+  await expect.poll(() => model.reads.at(-1).get("page")).toBe("2");
   expect(model.reads.at(-1).get("query")).toBe("cats & dogs");
   expect(model.reads.at(-1).get("read_filter")).toBe("unread");
 });
 
-test("failed page navigation preserves the article and pagination position", async ({ page }) => {
+test("failed automatic loading preserves stories and retries the same batch", async ({ page }) => {
   const model = await fixture(page);
+  model.hasMore = true;
+  model.failMore = true;
   await openStory(page);
-  model.failRead = true;
-  await page.getByRole("button", { name: "Next page" }).click();
-  await expect(page.locator("#story-status")).toHaveClass(/error/);
+  await page.getByRole("button", { name: "Back to stories", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Retry loading stories" })).toBeVisible();
+  await expect(page.locator("#stream-status")).toHaveClass(/error/);
   await expect(page.locator("#article-title")).toHaveText("Synthetic story");
-  await expect(page.locator("#page-label")).toHaveText("Page 1");
+  await expect(page.locator("#stories .story")).toHaveCount(2);
+  model.failMore = false;
+  model.pages[2] = { stories: [story("1:more", "Another story")], page: 2, can_continue: false };
+  await page.getByRole("button", { name: "Retry loading stories" }).click();
+  await expect(page.locator("#stories .story")).toHaveCount(3);
+  expect(model.reads.slice(-2).map(params => params.get("page"))).toEqual(["2", "2"]);
 });
 
 test("keyboard navigation pauses in inputs and appearance survives reload", async ({ page }) => {
@@ -112,6 +71,7 @@ test("keyboard navigation pauses in inputs and appearance survives reload", asyn
   await openStory(page);
   await page.keyboard.press("j");
   await expect(page.locator("#article-title")).toHaveText("Second synthetic story");
+  await page.getByRole("button", { name: "Back to stories", exact: true }).click();
   await page.getByLabel("Search this feed").focus();
   await page.keyboard.press("k");
   await expect(page.locator("#article-title")).toHaveText("Second synthetic story");
@@ -178,11 +138,13 @@ test("NewsBlur related story opens by hash and external hyperlinks stay isolated
 test("layouts preserve stories, selection, filters and request state", async ({ page }) => {
   const model = await fixture(page);
   await openStory(page);
+  await page.getByRole("button", { name: "Back to stories", exact: true }).click();
   await page.getByLabel("Show", { exact: true }).selectOption("unread");
   await page.getByLabel("Search this feed").fill("cats");
   await page.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(page.locator("#article-content")).toBeEmpty();
   await page.locator("#stories .story").first().click();
+  await page.getByRole("button", { name: "Back to stories", exact: true }).click();
   const reads = model.reads.length;
   const original = await page.locator("#stories .story").evaluateAll(nodes => nodes.map(node => node.dataset.hash));
   await page.locator("#stories .story").first().evaluate(node => { window.originalStoryNode = node; });
@@ -198,8 +160,10 @@ test("layouts preserve stories, selection, filters and request state", async ({ 
   }
   expect(model.reads).toHaveLength(reads);
   expect(model.actions).toEqual([]);
+  await page.locator("#stories .story").first().click();
   await page.getByRole("button", { name: "Save story", exact: true }).click();
   await expect(page.locator('#stories .story[aria-current="true"]')).toContainText("Saved");
+  await page.getByRole("button", { name: "Back to stories", exact: true }).click();
   await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
   await page.reload();
   await expect(page.getByLabel("Story layout", { exact: true })).toHaveValue("magazine");
@@ -235,6 +199,7 @@ test("excerpts are inert text and disappear in compact List", async ({ page }) =
   model.stories[0].excerpt = '<img src="https://tracker.invalid/pixel" onerror="alert(1)"> A preview.';
   model.stories[1].excerpt = "";
   await openStory(page);
+  await page.getByRole("button", { name: "Back to stories", exact: true }).click();
   await expect(page.locator("#stories .story-excerpt")).toHaveCount(1);
   await expect(page.locator("#stories .story-excerpt")).toContainText("<img");
   await expect(page.locator("#stories img")).toHaveCount(0);
@@ -245,15 +210,15 @@ test("excerpts are inert text and disappear in compact List", async ({ page }) =
   }
 });
 
-test("article return restores origin after linked coverage and layout changes", async ({ page }) => {
+test("article return restores origin after linked coverage and preserves layout", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const model = await fixture(page);
   model.stories.push(...Array.from({ length: 10 }, (_, i) => story(`1:extra${i}`, `Additional story ${i}`)));
   model.stories[0].related = [{ hash: "1:linked", title: "Read related coverage" }];
+  await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
   await openStory(page);
   await page.getByRole("button", { name: "Read related coverage", exact: true }).click();
   await expect(page.locator("#article-title")).toHaveText("Linked synthetic story");
-  await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
   await page.getByRole("button", { name: "Back to stories", exact: true }).click();
   await expect(page.locator("#stories .story").first()).toBeFocused();
   expect(await page.locator("#stories .story").first().evaluate(node => {
@@ -261,7 +226,6 @@ test("article return restores origin after linked coverage and layout changes", 
     return rect.top >= 0 && rect.top < innerHeight;
   })).toBe(true);
   expect(model.actions).toEqual([]);
-  await page.getByRole("button", { name: "Next page", exact: true }).click();
   await expect(page.getByRole("button", { name: "Back to stories", exact: true })).toBeHidden();
 });
 
@@ -384,6 +348,7 @@ test("opening a story loads full text and preserves explicit story state", async
   await expect(page.locator("#full-text-status")).toHaveText("Full text from NewsBlur.");
   await page.getByRole("button", { name: "Save story", exact: true }).click();
   await expect(page.getByRole("button", { name: "Unsave story", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Back to stories", exact: true }).click();
   await page.locator("#stories .story").first().click();
   await expect(page.locator("#article-content")).toContainText("Complete article beyond");
   expect(model.textRequests).toEqual(["1:abc"]);
@@ -411,9 +376,294 @@ test("late full text cannot replace a subsequently opened story", async ({ page 
   });
   await openStory(page);
   await expect(page.locator("#full-text-status")).toContainText("Loading full text");
-  await page.locator("#stories .story").nth(1).click();
+  await page.keyboard.press("j");
   await expect(page.locator("#article-title")).toHaveText("Second synthetic story");
   release();
   await expect(page.locator("#full-text-status")).toHaveText("Full text from NewsBlur.");
   await expect(page.locator("#article-content")).not.toContainText("Late first article");
+});
+
+for (const layout of ["cards", "magazine"]) {
+  test(`${layout} opens a focused article and restores the collection on desktop, tablet and phone`, async ({ page }) => {
+    const model = await fixture(page);
+    model.stories.push(...Array.from({ length: 28 }, (_, i) => story(`1:focus${i}`, `Reading story ${i}`)));
+    await page.getByLabel("Story layout", { exact: true }).selectOption(layout);
+    await page.getByRole("button", { name: "Synthetic feed" }).click();
+    const target = page.locator("#stories .story").nth(8);
+    for (const width of [1440, 900, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await target.scrollIntoViewIfNeeded();
+      const position = await page.evaluate(() => scrollY);
+      await target.click();
+      await expect(page.locator(".story-list")).toBeHidden();
+      await expect(page.locator("#article")).toBeVisible();
+      await expect(page.locator("#article-title")).toHaveText("Reading story 6");
+      const title = await page.locator("#article-title").boundingBox();
+      expect(title.y).toBeGreaterThanOrEqual(0);
+      expect(title.y + title.height).toBeLessThan(900);
+      expect(await page.evaluate(() => scrollY)).toBe(0);
+      if (width === 390) await expect(page.locator(".subscriptions")).toBeHidden();
+      if (width === 900) {
+        await page.keyboard.press("g");
+        await page.keyboard.press("s");
+      } else await page.getByRole("button", { name: "Back to stories", exact: true }).click();
+      await expect(page.locator(".story-list")).toBeVisible();
+      await expect(page.locator("#article")).toBeHidden();
+      await expect(target).toBeFocused();
+      expect(Math.abs(await page.evaluate(() => scrollY) - position)).toBeLessThan(3);
+      await expect(page.getByLabel("Story layout", { exact: true })).toHaveValue(layout);
+    }
+    expect(model.actions).toEqual([]);
+    expect(model.reads).toHaveLength(1);
+  });
+}
+
+for (const width of [1440, 900, 390]) {
+  test(`List expands one article in place at ${width}px and retains its controls`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const model = await fixture(page);
+    model.stories.push(...Array.from({ length: 20 }, (_, i) => story(`1:inline${i}`, `Inline story ${i}`)));
+    await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+    await page.getByRole("button", { name: "Synthetic feed" }).click();
+    const row = page.locator("#stories > li").nth(8);
+    const next = page.locator("#stories > li").nth(9);
+    await row.locator(".story").click();
+    await expect(row.locator("#article")).toBeVisible();
+    await expect(row.locator(".story")).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator(".story-list")).toBeVisible();
+    await expect(page.locator("#stories > li")).toHaveCount(22);
+    const article = await page.locator("#article").boundingBox();
+    const following = await next.boundingBox();
+    expect(following.y).toBeGreaterThanOrEqual(article.y + article.height - 1);
+    await page.getByRole("button", { name: "Save story", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Unsave story", exact: true })).toBeVisible();
+    await expect(row.locator("#article")).toBeVisible();
+    await expect(page.locator("#article")).toHaveCount(1);
+    await page.getByLabel("Story layout", { exact: true }).selectOption("cards");
+    await expect(page.locator(".story-list")).toBeHidden();
+    await expect(page.locator("#reader > #article")).toBeVisible();
+    // The layout control is hidden during focused reading; change it through
+    // the existing control to verify the transition back without losing state.
+    await page.locator("#story-layout").selectOption("list", { force: true });
+    await expect(row.locator("#article")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Unsave story", exact: true })).toBeVisible();
+    await next.locator(".story").click();
+    await expect(next.locator("#article")).toBeVisible();
+    await expect(row.locator(".story")).toHaveAttribute("aria-expanded", "false");
+    await page.getByRole("button", { name: "Close story", exact: true }).click();
+    await expect(page.locator("#article")).toBeHidden();
+    await expect(next.locator(".story")).toBeFocused();
+    await row.locator(".story").click();
+    await row.locator(".story").click();
+    await expect(row.locator(".story")).toHaveAttribute("aria-expanded", "false");
+    await next.locator(".story").click();
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await expect(page.locator("#article-content")).toBeEmpty();
+    await expect(page.locator("#reader")).toBeHidden();
+    expect(model.actions).toEqual(["save"]);
+  });
+}
+
+test("scrolling appends unique stories through the final batch", async ({ page }) => {
+  const model = await fixture(page);
+  model.stories = Array.from({ length: 30 }, (_, i) => story(`1:batch${i}`, `Story ${i}`));
+  model.hasMore = true;
+  model.pages[2] = { stories: [model.stories[29], ...Array.from({ length: 10 }, (_, i) => story(`1:later${i}`, `Later story ${i}`))], page: 2, can_continue: true };
+  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await expect(page.locator("#stories > li")).toHaveCount(30);
+  expect(model.reads).toHaveLength(1);
+  await page.locator("#stream-footer").scrollIntoViewIfNeeded();
+  await expect(page.locator("#stories > li")).toHaveCount(40);
+  await page.locator("#stream-footer").scrollIntoViewIfNeeded();
+  await expect(page.locator("#stream-status")).toHaveText("No more stories.");
+  await expect(page.getByRole("button", { name: "Load more stories", exact: true })).toBeHidden();
+  expect(model.reads.map(params => params.get("page"))).toEqual(["1", "2", "3"]);
+});
+
+test("loading more preserves inline article DOM, focus and scroll with one request at a time", async ({ page }) => {
+  const model = await fixture(page);
+  model.stories.push(...Array.from({ length: 28 }, (_, i) => story(`1:extra${i}`, `Extra story ${i}`)));
+  model.hasMore = true;
+  let release;
+  const blocked = new Promise(resolve => { release = resolve; });
+  let calls = 0;
+  await page.route("**/api/feeds/1/stories?**", async (route, request) => {
+    if (new URL(request.url()).searchParams.get("page") !== "2") return route.fallback();
+    calls++;
+    await blocked;
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ stories: [story("1:append", "Appended story")], page: 2, can_continue: false }) });
+  });
+  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await openStory(page);
+  await page.locator("#toggle-save").focus();
+  await page.evaluate(() => { window.originalArticle = document.querySelector("#article"); window.originalRow = document.querySelector("#stories > li"); });
+  await page.locator("#stream-footer").scrollIntoViewIfNeeded();
+  await expect.poll(() => calls).toBe(1);
+  const position = await page.evaluate(() => scrollY);
+  await page.evaluate(() => { dispatchEvent(new Event("scroll")); dispatchEvent(new Event("resize")); });
+  release();
+  await expect(page.locator("#stories > li")).toHaveCount(31);
+  expect(calls).toBe(1);
+  expect(await page.evaluate(() => document.querySelector("#article") === window.originalArticle && document.querySelector("#stories > li") === window.originalRow)).toBe(true);
+  await expect(page.locator("#toggle-save")).toBeFocused();
+  expect(Math.abs(await page.evaluate(() => scrollY) - position)).toBeLessThan(3);
+});
+
+test("hidden-only pages are followed with a bounded automatic burst", async ({ page }) => {
+  const model = await fixture(page);
+  for (const number of [1, 2, 3]) model.pages[number] = { stories: [], page: number, can_continue: true };
+  model.pages[4] = { stories: [story("1:visible", "Visible after hidden stories")], page: 4, can_continue: false };
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await expect(page.locator("#stream-status")).toContainText("Load more to continue");
+  expect(model.reads.map(params => params.get("page"))).toEqual(["1", "2", "3"]);
+  await page.getByRole("button", { name: "Load more stories", exact: true }).click();
+  await expect(page.locator("#stories")).toContainText("Visible after hidden stories");
+  await expect(page.locator("#stream-status")).toHaveText("No more stories.");
+});
+
+test("a canceled continuation cannot append stories to a different view", async ({ page }) => {
+  const model = await fixture(page);
+  model.hasMore = true;
+  let release;
+  const blocked = new Promise(resolve => { release = resolve; });
+  let started = false;
+  await page.route("**/api/feeds/1/stories?**", async (route, request) => {
+    if (new URL(request.url()).searchParams.get("page") !== "2") return route.fallback();
+    started = true;
+    await blocked;
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ stories: [story("1:stale", "Stale continuation")], page: 2, can_continue: false }) }).catch(() => {});
+  });
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await expect.poll(() => started).toBe(true);
+  await page.getByRole("button", { name: "Saved stories", exact: true }).click();
+  release();
+  await expect(page.locator("#stories")).toContainText("Previously saved story");
+  await expect(page.locator("#stories > li")).toHaveCount(1);
+  await expect(page.locator("#stories")).not.toContainText("Stale continuation");
+});
+
+for (const scope of ["saved", "briefing"]) {
+  test(`${scope} stories load continuously using their own endpoint`, async ({ page }) => {
+    const model = await fixture(page);
+    const pages = [];
+    await page.route(`**/api/${scope}?**`, route => {
+      const number = Number(new URL(route.request().url()).searchParams.get("page"));
+      pages.push(number);
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ stories: [story(`1:${scope}${number}`, `${scope} story ${number}`)], page: number, state: "ready", can_continue: number === 1 }) });
+    });
+    await page.getByRole("button", { name: scope === "saved" ? "Saved stories" : "Daily Briefing", exact: true }).click();
+    await expect(page.locator("#stories > li")).toHaveCount(2);
+    await expect(page.locator("#stream-status")).toHaveText("No more stories.");
+    expect(pages).toEqual([1, 2]);
+    expect(model.reads).toEqual([]);
+  });
+}
+
+test("automatic loading pauses offline and resumes when the connection returns", async ({ page, context }) => {
+  const model = await fixture(page);
+  model.stories = Array.from({ length: 30 }, (_, i) => story(`1:offline${i}`, `Offline fixture ${i}`));
+  model.hasMore = true;
+  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await expect(page.locator("#stories > li")).toHaveCount(30);
+  await context.setOffline(true);
+  await page.locator("#stream-footer").scrollIntoViewIfNeeded();
+  await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
+  await page.evaluate(() => new Promise(requestAnimationFrame));
+  expect(model.reads).toHaveLength(1);
+  await context.setOffline(false);
+  await expect(page.locator("#stream-status")).toHaveText("No more stories.");
+  expect(model.reads.map(params => params.get("page"))).toEqual(["1", "2"]);
+});
+
+test.describe("publication dates", () => {
+  test.use({ timezoneId: "America/Los_Angeles", locale: "en-US" });
+
+  test("local date groups span batches without sorting or guessing unknown dates", async ({ page }) => {
+    const model = await fixture(page);
+    const dated = (hash, date) => ({ ...story(hash, hash), published_at: date });
+    model.stories = [dated("1:first", "2024-01-02T00:30:00Z"), dated("1:second", "2024-01-01T15:00:00Z")];
+    model.hasMore = true;
+    model.pages[2] = { page: 2, can_continue: false, stories: [dated("1:third", "2024-01-02T07:00:00Z"), dated("1:fourth", "2024-01-02T09:00:00Z"), { ...story("1:unknown"), date: "2024-01-02 12:00:00" }, dated("1:older", "2024-01-01T15:00:00Z")] };
+    await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+    await page.getByRole("button", { name: "Synthetic feed" }).click();
+    await expect(page.locator("#stories .story")).toHaveCount(6);
+    await expect(page.locator("#stories .date-heading")).toHaveText(["January 1, 2024", "January 2, 2024", "Date unavailable", "January 1, 2024"]);
+    expect(await page.locator("#stories .story").evaluateAll(nodes => nodes.map(node => node.dataset.hash))).toEqual(["1:first", "1:second", "1:third", "1:fourth", "1:unknown", "1:older"]);
+    await expect(page.locator("#stories time").first()).toHaveAttribute("datetime", "2024-01-02T00:30:00.000Z");
+    await expect(page.locator("#stories time").first()).toContainText("Jan 1, 2024");
+    await expect(page.locator("#stories time").first()).toHaveAttribute("title", /PST|Pacific Standard Time/);
+    await expect(page.locator('[data-hash="1:unknown"] time')).toHaveCount(0);
+    await page.locator('[data-hash="1:first"]').click();
+    await expect(page.locator("#article-meta time")).toHaveAttribute("datetime", "2024-01-02T00:30:00.000Z");
+  });
+});
+
+test("refresh status records success, survives errors, and clears on logout", async ({ page }) => {
+  const model = await fixture(page);
+  await expect(page.locator("#collection-updated")).toBeHidden();
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await expect(page.locator("#collection-updated")).toContainText("Last refreshed");
+  const successful = await page.locator("#collection-updated time").getAttribute("datetime");
+  model.failRead = true;
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect(page.locator("#story-status")).toHaveClass(/error/);
+  await expect(page.locator("#collection-updated time")).toHaveAttribute("datetime", successful);
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page.locator("#collection-updated")).toBeEmpty();
+});
+
+for (const theme of ["light", "dark", "paper"]) {
+  test(`${theme} theme has readable text and usable control targets`, async ({ page }) => {
+    await fixture(page);
+    await page.getByRole("button", { name: "Appearance", exact: true }).click();
+    await page.getByLabel("Background", { exact: true }).selectOption(theme);
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    await page.getByRole("button", { name: "Synthetic feed" }).click();
+    await expect(page.locator("#story-status")).toHaveText("2 stories");
+    const ratios = await page.evaluate(() => {
+      const style = getComputedStyle(document.documentElement);
+      const luminance = color => {
+        const channels = color.match(/\d+/g).map(Number).slice(0, 3).map(n => n / 255).map(n => n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4);
+        return channels.reduce((sum, n, i) => sum + n * [.2126, .7152, .0722][i], 0);
+      };
+      const color = token => {
+        const probe = document.createElement("span");
+        probe.style.color = style.getPropertyValue(token);
+        document.body.append(probe);
+        const result = luminance(getComputedStyle(probe).color);
+        probe.remove();
+        return result;
+      };
+      return ["--ink", "--muted", "--accent"].flatMap(foreground => ["--paper", "--panel", "--wash"].map(background => {
+        const a = color(foreground), b = color(background);
+        return { foreground, background, ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05) };
+      }));
+    });
+    for (const { foreground, background, ratio } of ratios) expect(ratio, `${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
+    const controls = await page.locator("button:visible, select:visible, summary:visible").evaluateAll(nodes => nodes.map(node => ({ name: node.textContent.trim(), height: node.getBoundingClientRect().height })));
+    for (const control of controls) expect(control.height, control.name).toBeGreaterThanOrEqual(44);
+  });
+}
+
+test("large text and reduced motion retain reading and dialog controls on a phone", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const model = await fixture(page);
+  model.stories[0].title = "قراءة الأخبار بهدوء — とても長い見出しと読みやすい本文";
+  await page.addStyleTag({ content: ":root { font-size:32px; }" });
+  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await page.locator("#stories .story").first().click();
+  await expect(page.locator("#article-title")).toHaveAttribute("dir", "auto");
+  const overflow = await page.evaluate(() => [...document.querySelectorAll("body *")].filter(node => node.getBoundingClientRect().right > innerWidth + 1).map(node => ({ tag: node.tagName, id: node.id, class: node.className, width: node.getBoundingClientRect().width })).slice(0, 20));
+  expect(overflow).toEqual([]);
+  expect(await page.locator("#back-to-stories").evaluate(node => getComputedStyle(node).transitionDuration)).toBe("0s");
+  await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Done", exact: true })).toBeVisible();
+  expect(await page.getByRole("dialog").evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Close story", exact: true }).click();
+  await expect(page.locator("#stories .story").first()).toBeFocused();
 });

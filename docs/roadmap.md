@@ -1,326 +1,131 @@
 # Roadmap: Cards, Magazine, and List
 
-Updated 13 November 2026. This replaces the previous milestone roadmap.
-All work below is planned unless explicitly described as existing behavior.
-
-## Implementation progress
-
-Stories now request full text automatically when opened through the story list,
-keyboard navigation, saved reading, or related coverage. The feed version remains
-visible during loading and on failure; successful extracted text replaces the
-article body without changing read/saved state. Briefing summaries retain their
-generated content. Loaded full text is reused only on the current in-memory story
-objects; nothing is persisted to browser storage or a reader story database.
-
-The authenticated `GET /api/stories/{hash}/text` adapter calls NewsBlur's fixed
-`/rss_feeds/original_text?story_hash=...` endpoint, verifies returned story identity,
-and applies the existing article/picture sanitizer. It accepts no upstream URL,
-does not request force/debug, and performs no local scraping. Failed/empty text,
-unsupported endpoints, transport failure, and session expiry remain visible.
-Late responses cannot replace a subsequently selected article or signed-out view.
-
-The upstream contract was checked against
-[NewsBlur original_text](https://github.com/samuelclay/NewsBlur/blob/main/apps/rss_feeds/views.py#L630)
-on 13 November 2026 (inspected file blob
-`607791c974d0f663e3ca0fbf8fd29782343afbbe`). Installed endpoint availability,
-publisher extraction completeness, and paywall behavior remain acceptance checks;
-the reader cannot guarantee that NewsBlur can extract every publisher's full text.
-Go formatting/vet/tests/build and all 22 synthetic browser tests pass, covering
-sanitization, unavailable text, wrong identity, no implicit read/save writes,
-in-memory reuse, and stale response handling. No upstream source was copied.
-
-The first implementation slice delivers the visible Cards / Magazine / List
-selector, Cards as the default, allowlisted browser-local preference storage,
-and three responsive text-first treatments. Magazine emphasizes the first
-returned story without changing order; List uses compact rows. Switching uses
-the same story DOM nodes and preserves selection, handlers, filters, pagination,
-and a visible story scroll anchor without making API calls. Read and saved
-indicators continue to reflect confirmed NewsBlur state.
-
-Verification of the foundation: all 13 synthetic Chromium browser tests passed, including three new
-tests for layout context/request preservation, preference persistence and invalid
-or unavailable storage, and narrow screens with long titles. Desktop synthetic
-screenshots of all three treatments were visually reviewed. No reference-project
-source or assets were copied; this slice adds original implementation code.
-
-The next slice adds a shared server-generated plain-text excerpt, bounded to 240
-Unicode characters and derived only from sanitized content. Cards and Magazine
-show bounded previews; List remains compact. A Back to stories button restores
-focus and scrolls to the originating story after reading linked coverage, even
-if the layout changes. Pagination clears obsolete return targets.
-
-Verification of this slice: Go formatting, vet, tests, and build pass; all 15
-synthetic Chromium tests pass. New coverage checks sanitized excerpt output,
-Unicode boundaries, inert markup-like preview text, compact List behavior, and
-mobile return to the originating story after related coverage and layout changes.
-No additional upstream code or assets were copied.
-
-Picture support now uses NewsBlur `image_urls` and `secure_image_urls`, with a
-fallback to pictures already in story content. The common sanitizer retains
-only validated absolute HTTPS images as inert `data-picture-src` placeholders;
-events, styles, srcset, embedded credentials, and non-HTTPS image URLs are removed.
-Cards/Magazine show a lead picture; articles retain inline pictures and alt text.
-List displays compact 56-pixel square thumbnails beside headlines, with no empty
-image column for stories without pictures. Appearance offers a saved Show/Hide Pictures
-preference that suppresses picture requests in all views when hidden.
-
-The browser uses ordinary image requests with no-referrer, lazy-loading, and
-asynchronous decoding. An initial implementation incorrectly required anonymous
-CORS, which rejected otherwise displayable publisher images; that requirement
-has been removed. NewsBlur's signed image replacements now apply to inline images
-as well as lead pictures, including HTTP originals with HTTPS replacements.
-External-site cookies follow the browser's settings; there is no claim that
-normal image requests omit those cookies. Reader-origin image URLs are
-rejected; no server-side image fetcher or arbitrary image proxy was introduced.
-Nginx permits HTTPS pictures while retaining same-origin scripts/connections.
-Remote sites can see the browser's IP; inaccessible hosts, HTTP-only images without HTTPS replacements,
-and expired signed URLs receive a readable fallback. There is no credentialed
-retry. Installed-account image availability and host compatibility remain unverified.
-
-The metadata contract was checked against
-[NewsBlur story formatting](https://github.com/samuelclay/NewsBlur/blob/main/apps/rss_feeds/models.py#L3154)
-on 13 November 2026 (inspected file blob
-`9627cfc5a15bef87581f4b6b5ff8f4ead1595d63`); no upstream source was copied.
-
-Picture checks: Go formatting, vet, tests, and build pass; 23 synthetic Chromium
-tests and four isolated Docker integration tests pass. Coverage includes image
-metadata, inert sanitized markup, unsafe URLs, normal image requests without a
-referrer or CORS requirement, browser-blocked/failed responses, hidden pictures,
-and compact List thumbnails on desktop/mobile. Synthetic Cards/Magazine and mobile picture layouts were visually
-reviewed through the Docker preview. Actual installed-account images and manual
-accessibility acceptance are still open.
-
-Milestone 2's selector/List foundation is delivered. Milestones 1, 3, and 4 remain
-partial or planned: exact upstream code-candidate review, installed image
-acceptance, date grouping, further article-return polish, and full theme/mobile
-visual and accessibility acceptance still need work. Existing installed-server
-release gates remain open. This is not the completed three-view release.
+Updated 13 November 2026. Milestones 1?5 are implemented and locally verified.
+Milestone 6 has local verification plus open installed/human release gates.
+This is a reviewable build, not a claim of completed production acceptance.
 
 ## Product direction
 
-Make News Stability a calm, fast web reader with exactly three story layouts:
-**Cards**, **Magazine**, and **List**. Borrow the best reading interactions from
-[Whisper](https://github.com/Nyancat-Labs/whisper_feed) and
-[Fluent Reader](https://github.com/yang991178/fluent-reader), and adapt useful
-code where its license and architecture fit. Aim for their quality of reading
-experience while giving News Stability its own visual identity.
+A calm reader with exactly **Cards**, **Magazine**, and **List**. Cards is the
+new-browser default. Borrow useful reading ideas from Whisper and Fluent Reader,
+with original branding and an explicit [source/license review](open-source-reuse.md).
+Go and native JavaScript/CSS remain the implementation. NewsBlur owns feeds,
+stories, state, search, intelligence, full-text extraction and briefing generation.
+See [architecture](architecture.md) for responsibility boundaries.
 
-Go remains the server language. Keep native JavaScript modules and CSS unless
-a demonstrated requirement justifies changing that choice. NewsBlur at the
-configured origin (currently `https://news101.lan`) continues to own feeds,
-stories, read/saved state, intelligence, search, full text, and Daily Briefing
-generation. This roadmap adds presentation and thin adapters to those services.
+## 1. Visual and reuse foundation ? complete
 
-## Starting point
+- [x] Review pinned Whisper and Fluent Reader presentation source, screenshots,
+  license texts and inherited attribution; record exact paths and reuse decisions.
+- [x] Keep original layout/interaction code; retain notices for the actual
+  Miniflux, Fusion, Shiori, Memos and Go/module imports.
+- [x] Share spacing, typography, image ratios, focus/selection, read/saved state,
+  light/dark/paper themes and clear loading/empty/error treatments.
+- [x] Provide repeatable synthetic examples: pictures, text-only, long titles,
+  CJK, right-to-left content, missing metadata and unavailable pictures.
+- [x] Trace shared selection, actions, continuation and article-return flows;
+  retain one state/action model with focused presentation modules.
 
-The repository already contains login/logout, server-side sessions, nested feed
-navigation, pagination, sanitized articles, explicit read/unread and save/unsave,
-saved reading, feed search/unread filtering, themes/fonts, keyboard navigation,
-related-story links, and presentation of NewsBlur Daily Briefing output.
-The initial story renderer was a title/metadata list. The three-layout selector,
-text-first card/magazine composition, excerpts, and article return are now
-implemented as described above, including lead and inline pictures.
+Evidence: [reuse inventory](open-source-reuse.md), `npm run review:ui` gallery
+and browser checks. The gallery covers desktop/phone in all layouts/themes,
+with the collection and expanded article. Reference assets are not distributed.
 
-Existing synthetic Go, browser, and proxy tests provide a foundation. This
-documentation change does not rerun or certify those suites. Installed-account
-acceptance, human accessibility review, intended-browser checks, and the final
-HTTPS/upgrade/rollback exercise remain open. Earlier user confirmation that
-installed briefing generation works does not establish a generation-progress
-API contract or the installed NewsBlur version.
+## 2. Selector and List ? complete
 
-## The three views
+- [x] Visible Cards / Magazine / List selector; validated local preference with
+  usable defaults when storage is invalid or unavailable.
+- [x] Keep source scope separate from layout across feed/search, saved and briefing.
+- [x] Compact rows, optional 56-pixel thumbnails, consistent metadata and confirmed
+  read/saved indicators. No empty picture column or nested action buttons.
+- [x] Open one article immediately below its headline, moving subsequent rows down.
+  Click its headline again or Close story to collapse and restore focus.
+- [x] Preserve selection, query, filter, loaded stories, shortcuts and browsing
+  position across layout changes and return; no layout-triggered API calls/writes.
 
-| View | Reading experience | Required behavior |
-| --- | --- | --- |
-| Cards | Comfortable image-led browsing with consistent cards, headline, short excerpt, source, age, and read/saved indicators. | Responsive grid on wide screens; single column on phones; stable image space; equally useful text-only cards. |
-| Magazine | Editorial rhythm with a larger lead story and smaller supporting stories, generous typography, and restrained imagery. | Lead spans at most two columns; DOM, visual, and keyboard order agree; narrow screens become a readable single column. |
-| List | Dense scanning with compact headline rows, small thumbnails, source, age, and read/saved indicators. | Show 56-pixel thumbnails when Pictures is enabled; long titles remain accessible; controls work with keyboard, touch, and pointer. |
+## 3. Cards and pictures ? complete implementation
 
-Cards is the default for a new browser. A visible, accessible selector offers
-Cards / Magazine / List and remembers the choice as a local appearance setting.
-The same choice applies to feed results, search results, saved stories, and
-briefing source stories. Briefing summaries retain an appropriate summary
-presentation and do not acquire unsupported story actions.
+- [x] Responsive card grid, bounded excerpts, useful text-only cards and shared actions.
+- [x] Adapt NewsBlur image metadata and signed replacements; fall back to sanitized
+  inline pictures without publisher scraping or an arbitrary image proxy.
+- [x] Allow only validated HTTPS images, preserve safe alt text, reserve space,
+  lazy-load/decode and cap collection pictures at half the viewport height.
+- [x] Normal browser image requests, no referrer or unnecessary CORS requirement;
+  reject reader-origin image URLs and retain text when pictures fail.
+- [x] Appearance ? Pictures hides images and suppresses their requests across views.
 
-Switching layout preserves the selected story, feed, query, filter, loaded page,
-and a meaningful scroll/focus anchor. It does not fetch a new story set, reorder
-stories, or mark anything read. Initially Magazine emphasizes the first story
-in NewsBlur's returned order; visual prominence makes no claim of importance.
+Installed-host compatibility remains a release gate. HTTP-only pictures without
+secure replacements, blocked hosts and expired signed URLs may be unavailable.
+External requests expose the browser IP and follow its external-site cookie policy.
 
-## Reference ideas and reuse candidates
+## 4. Magazine and article presentation ? complete
 
-These are design selections based on the upstream READMEs and license files
-reviewed on 13 November 2026, not claims that code has already been imported.
-Inspect exact implementation files and pin their commit before adapting code.
+- [x] Restrained lead and supporting stories, at most two columns, single-column
+  phones, with identical upstream story order and shared authoritative state.
+- [x] Date headings for contiguous day runs in Magazine/List, including batch
+  boundaries. Never sort or merge noncontiguous dates. Cards retain timestamps.
+- [x] Browser-local date policy using NewsBlur epoch timestamps, accessible absolute
+  `<time>` metadata, Today/Yesterday labels and explicit unknown-date handling.
+  Legacy dates without a timezone are not guessed. Refresh updates day labels.
+- [x] Cards/Magazine hide the collection and open the article at the top of the
+  reading area. Back to stories restores browsing position and selected focus.
+- [x] List uses the same article panel inline, including full text and related
+  coverage. Partial/one-story batches, text-only content and large text work.
+- [x] Full text loads automatically from NewsBlur; feed content remains visible
+  during loading/failure. Late responses cannot replace another selection.
+  No local extraction, persistent article cache, or unsupported summary actions.
 
-| Reference | Bring into the reader | Adaptation boundary |
-| --- | --- | --- |
-| Whisper | Cards/Magazine/List, concise source/category/age metadata, responsive columns, restrained lead-story sizing, and a feed beside the open article on large screens. | Use NewsBlur-provided metadata; keep chronological/upstream order; implement browser layouts without importing Android UI or persistence. |
-| Whisper | Today/Yesterday grouping, visible last-refresh state, clear read/saved treatment, and understandable related coverage. | Group dates without changing upstream order; distinguish refresh time from publication time; use NewsBlur clusters rather than inventing local topic detection. |
-| Fluent Reader | Clear folder navigation, read-status filtering, efficient keyboard reading, theme consistency, and an integrated article pane. | Extend existing native modules and NewsBlur adapters; inspect reusable helpers without adopting Electron, React, Redux, or its local database. |
-| Both, plus reader improvements | Consistent return-to-story behavior, readable text-only stories, visible failures, reduced motion, and a distraction-free article mode. | Keep one story/action model across all layouts and retain context on failed reads or writes. |
+## 5. Reading polish and continuous scrolling ? complete locally
 
-Do not add Mosaic as a fourth layout. Feed discovery/import, scraping, full-text
-extraction, local personalization/ranking, regex automation, background feed
-fetching, weather, launcher integration, and a second synchronization engine are
-outside this reader roadmap. Saved stories remain NewsBlur saves; they do not
-promise offline downloads. Search retains NewsBlur semantics, without claiming
-Fluent Reader's regex search or Whisper's offline search.
+- [x] Shared folders, filters, saved/briefing scopes, related coverage, source links,
+  appearance controls and keyboard help across all layouts.
+- [x] Successful Last refreshed timestamp, retained on failure and cleared at logout;
+  separate loading, no matches, end, hidden batches, offline, expiry and errors.
+- [x] Load ahead within 800 pixels of the collection end. Append in upstream order,
+  deduplicate hashes and retain existing rows, inline article, focus and scroll.
+- [x] One batch request at a time; cancel stale scope requests. Pause automatic
+  loading offline, in background tabs and while focused reading hides the collection.
+- [x] Stop at NewsBlur's end; retain explicit Load more/Retry controls. After three
+  hidden/duplicate-only batches, require manual continuation to prevent a loop.
+- [x] Check names, focus, 44-pixel control heights, readable theme contrast,
+  reduced motion, 200% text reflow and right-to-left text direction. Repair
+  selected-row muted contrast and enlarged-text account-control overflow.
 
-## Delivery sequence
+Refresh/sign-in restart at the first batch. Loaded stories stay in memory;
+there is no DOM virtualization or offline story database. Installed large-feed
+performance and human screen-reader acceptance remain milestone 6 gates.
 
-### 1. Establish the visual and reuse foundation
+## 6. Verify and release ? local checks complete; release gates open
 
-- Inspect the reference screenshots and relevant layout/navigation source files;
-  record exact commits, candidate files, licenses, and the reason to reuse each.
-- Define shared spacing, typography, image ratios, focus, selection, read/saved,
-  light/dark/paper, and loading/empty/error treatments using existing theme tokens.
-- Produce representative Cards, Magazine, and List examples with synthetic
-  image-rich, text-only, long-title, multilingual, and missing-metadata stories.
-- Trace the existing story-selection, pagination, actions, and article-return
-  flows before deciding module boundaries. Keep shared state and actions in one
-  place; extract presentation responsibilities only where needed.
+- [x] Synthetic Chromium behavior coverage for layouts, storage failures, actions,
+  filters, images, full text, selection/return, inline expansion, continuous loading,
+  single-flight/cancellation, retry, dates, contrast, touch targets and text reflow.
+- [x] Repeatable 36-image review matrix: three layouts ? three themes ? two sizes
+  ? collection/article. Browser exceptions and horizontal overflow are checked.
+- [x] Go formatting/vet/tests/build, Linux race tests, Python security check,
+  Compose configuration and isolated proxy integration tests.
+- [x] Verify generated notices, license manifest and container packaging.
+- [x] Rebuild the healthy Docker preview; handle ordinary Compose stderr progress
+  correctly when the PowerShell script's output is redirected for review logs.
+- [ ] Verify installed NewsBlur version/endpoints using a dedicated synthetic account.
+- [ ] Complete human screen-reader/keyboard and intended-browser acceptance.
+- [ ] Exercise actual HTTPS/session deployment, upgrade and rollback.
+- [ ] Select a first-party distribution license before public release.
 
-Exit: reviewable examples cover desktop and phone sizes; the source inventory
-distinguishes design inspiration from actual copying and resolves licensing for
-each proposed import. Existing reader behavior has a recorded baseline.
+Use [release acceptance](acceptance.md) to record evidence and [open gates](blockers.md)
+for the missing inputs and unblocking actions. No routine test accesses real
+NewsBlur account data. Local implementation is not blocked by these release gates.
 
-### 2. Deliver the selector and complete List view
+## Copying and follow-on work
 
-- Add the three-choice layout control and allowlisted local preference, including
-  a usable fallback when storage is unavailable or contains an invalid value.
-- Separate content scope (feed/saved/briefing) from presentation layout in state.
-- Complete the compact List treatment and shared story metadata/actions.
-- Preserve selection, pagination, search/filter state, keyboard behavior, and
-  scroll/focus anchors through layout changes and article return.
+Actual imports require pinned source/local-path mappings, copyright and modification
+notices, complete license/NOTICE texts, compatibility review and any required
+corresponding source. Update the explicit notices generator inventory, public
+bundle and manifest, then verify distribution packaging. The
+[reuse review](open-source-reuse.md) records Whisper GPL-3.0-or-later and Fluent
+Reader BSD-3-Clause requirements. No source/assets from either were copied.
 
-Exit: selector behavior and List work across supported content scopes; changing
-layout causes no NewsBlur write, extra page load, or loss of reading context.
-
-### 3. Deliver Cards
-
-- Add responsive card grids, bounded excerpts, metadata, and read/saved controls
-  that do not conflict with opening the article or create nested buttons.
-- Establish a safe presentation contract for excerpts and optional thumbnails.
-  The current story decoder has no dedicated thumbnail field: verify NewsBlur's
-  actual response before extending it. Derive only from available sanitized
-  content if appropriate; never fetch publisher pages to fill gaps.
-- Validate image URLs, reserve dimensions, lazy-load offscreen images, avoid
-  credential/referrer leakage, and provide missing/broken-image fallbacks. Review
-  external-image privacy and the existing content policy before enabling them;
-  do not introduce an unrestricted image proxy.
-
-Exit: image-rich and image-free feeds remain useful; broken/slow images do not
-  obstruct reading; hostile HTML/URLs cannot bypass existing protections.
-
-### 4. Deliver Magazine
-
-- Compose a restrained lead story and supporting stories from the same ordered
-  collection used by Cards and List. Avoid masonry that scrambles reading order.
-- Add date headings where compatible with server ordering and pagination, using
-  a defined browser-local date policy and accessible absolute timestamps.
-- Keep article and story collection alongside each other where space permits;
-  provide a clear return path and preserved position on small screens.
-- Preserve text-only composition, large-text layouts, and all story actions.
-
-Exit: all three views display the same story identities/order and authoritative
-state; Magazine works on partial pages, one-story pages, and narrow screens.
-
-### 5. Polish the reading experience
-
-- Make existing folders, search, unread filters, saved stories, briefing sources,
-  and related coverage consistent across the three views.
-- Add distraction-free article reading, clear source links, and reliable return
-  to the originating story. Retain existing appearance controls and shortcut help.
-- Distinguish loading, no matches, end of feed, hidden-page continuation, expired
-  sessions, offline state, unavailable briefing, and upstream failure.
-- Audit focus visibility, accessible names, contrast, touch targets, reduced
-  motion, zoom, screen-reader reading order, and keyboard-only navigation.
-
-Exit: readers can browse, open, save, mark read/unread, and return in every view
-without losing context; failures preserve context and never report false success.
-
-### 6. Verify and release
-
-- Extend synthetic browser smoke coverage for layout switching/persistence,
-  selection/focus restoration, responsive behavior, action consistency, missing
-  images, and hostile content. Use behavior assertions rather than tests of CSS
-  implementation details; visually review all three views in each theme.
-- Run Go checks for any adapter changes, browser checks for UI changes, and
-  proxy/container checks when those boundaries change, following
-  [testing rules](ai/testing.md). Do not access real user data for routine tests.
-- Verify installed NewsBlur version and required endpoints with a dedicated
-  account and synthetic content. Complete human accessibility, intended-browser,
-  HTTPS/session, upgrade, and rollback acceptance before claiming release readiness.
-- Verify complete attribution in source, the public notices page, container
-  images, and downloadable distributions. Publish corresponding source wherever
-  required by any adopted license.
-
-Exit: all three views meet their acceptance criteria, applicable checks pass,
-license obligations are fulfilled, and remaining limitations are documented.
-
-## Copying code, assets, and licenses
-
-Reuse is welcome, including adapted code, but adding a license file alone is
-not sufficient. No code or assets from these two projects are copied by this
-roadmap change; existing third-party notices remain applicable and unchanged.
-
-**Fluent Reader:** its [LICENSE](https://github.com/yang991178/fluent-reader/blob/master/LICENSE)
-is BSD-3-Clause, copyright (c) 2020 Haoyuan Liu. When copying, preserve copyright,
-all three conditions, and the disclaimer in source; reproduce them with binary
-distributions; do not imply endorsement. Check each selected file and dependency
-for separately licensed material. Port small useful pieces to our native
-frontend where practical, with source mapping and a description of modifications.
-
-**Whisper:** its [README](https://github.com/Nyancat-Labs/whisper_feed#licence-and-attribution)
-declares GPL-3.0-or-later and supplies the full
-[GPLv3 text](https://github.com/Nyancat-Labs/whisper_feed/blob/main/LICENSE).
-Its [attribution](https://github.com/Nyancat-Labs/whisper_feed/blob/main/ATTRIBUTION.md)
-also identifies inherited work from Neo Feed, HomeFeeder, and other contributors.
-If adapting protected code, including a translation from Kotlin into JavaScript,
-determine the scope of the resulting derivative/combined work and compatibility
-with existing licenses before merging it. Meet GPL requirements for the covered
-work: retain notices, identify modifications and dates, supply the license,
-provide required legal notices, and make complete corresponding source and
-build/install material available through an applicable distribution mechanism.
-Browser-delivered code is itself distributed; server hosting does not remove
-obligations for code sent to browsers. Do not assume a separate file/module
-avoids copyleft. If that licensing scope is unsuitable, implement the interaction
-independently from the behavior reference or obtain alternative permission.
-
-For every actual import:
-
-1. Record upstream URL, full commit, exact source paths, local destinations,
-   copyright holders, license/SPDX identifier, inherited notices, and changes.
-2. Inspect file-specific licenses and NOTICE files, dependencies, fonts, icons,
-   translations, and artwork separately. Do not assume the repository license
-   grants trademark rights or covers every bundled asset. Use original branding
-   and synthetic story imagery unless asset permissions are established.
-3. Copy required license/NOTICE texts verbatim into `licenses/`; preserve source
-   headers and add clear attribution/modification notices to adapted files.
-4. Update [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md), the license manifest,
-   and `scripts/update_notices.py` inventory for new imports. Regenerate the
-   public bundle with `python scripts/update_notices.py`, then run
-   `python scripts/update_notices.py --check` and inspect distribution packaging.
-   The current generator has an explicit adapted-source inventory, so adding
-   an unlisted license file alone does not publish it.
-5. Verify license compatibility, source availability, required notices, and
-   packaging before the import is considered complete. Keep existing MIT,
-   Apache-2.0, BSD, and patent notices; do not replace them with a blanket credit.
-
-## Dependencies and follow-on ideas
-
-| Open dependency | Impact | Unblocking action |
-| --- | --- | --- |
-| Exact upstream code candidates and commits not selected | Design references are usable; code imports are not yet ready. | Inspect relevant files during milestone 1 and complete the reuse inventory. |
-| Whisper derivative-work licensing scope unresolved | Copying protected Whisper implementation cannot be treated as attribution-only. | Establish compatible GPL distribution/source handling, obtain alternative permission, or implement the interaction independently. |
-| Installed image-host compatibility and intelligence contracts unverified | Picture presentation uses ordinary HTTPS image loading and NewsBlur's signed replacements; importance explanations remain pending. | Verify image fields and image-host access on the installed server using dedicated synthetic content; preserve text-only fallbacks. No local ranking substitute. |
-| Installed release acceptance and human accessibility checks open | Three-view implementation alone will not establish release readiness. | Complete milestone 6 with recorded evidence. |
-
-After the three-view release, consider per-feed layout preferences, density
-controls, and presentation of NewsBlur-provided intelligence explanations.
-Evaluate bulk catch-up only against verified NewsBlur write semantics, explicit
-scope, confirmation, and genuine undo support. Automatic mark-on-scroll, offline
-article caching, and inferred ranking are deferred; they are not prerequisites
-for these views. Daily Briefing remains a presentation of NewsBlur output, with
-no invented generation-progress state.
+After release, consider per-feed layouts, density controls and presentation of
+verified NewsBlur intelligence explanations. Bulk catch-up needs verified write
+semantics, explicit scope, confirmation and genuine undo. Mosaic, local ranking,
+feed fetching, regex search, automatic mark-on-scroll, offline article caching
+and local briefing generation are outside this three-view release.

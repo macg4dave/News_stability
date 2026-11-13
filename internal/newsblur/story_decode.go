@@ -1,6 +1,9 @@
 package newsblur
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 // wireStory is shared by feed, individual-story, and briefing reads. Its raw
 // HTML never leaves this package through JSON; presentation sanitizes Content.
@@ -9,6 +12,7 @@ type wireStory struct {
 	Title        string            `json:"story_title"`
 	Author       string            `json:"story_authors"`
 	Date         string            `json:"story_date"`
+	Timestamp    json.Number       `json:"story_timestamp"`
 	URL          string            `json:"story_permalink"`
 	Content      string            `json:"story_content"`
 	ImageURLs    []string          `json:"image_urls"`
@@ -50,7 +54,13 @@ func (s wireStory) story() (Story, error) {
 			break
 		}
 	}
-	return Story{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, URL: s.URL, Content: s.Content, Pictures: pictures, PictureSources: s.SecureImages, Read: s.Read == 1, Saved: s.Saved, FeedID: s.FeedID, FeedTitle: s.FeedTitle, Related: related}, nil
+	// NewsBlur supplies epoch seconds as a string. Do not invent a timezone for
+	// its separate, timezone-free story_date field when the timestamp is absent.
+	publishedAt := ""
+	if seconds, err := s.Timestamp.Float64(); err == nil && seconds > 0 && seconds < 253402300800 {
+		publishedAt = time.Unix(int64(seconds), 0).UTC().Format(time.RFC3339)
+	}
+	return Story{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, PublishedAt: publishedAt, URL: s.URL, Content: s.Content, Pictures: pictures, PictureSources: s.SecureImages, Read: s.Read == 1, Saved: s.Saved, FeedID: s.FeedID, FeedTitle: s.FeedTitle, Related: related}, nil
 }
 
 func decodeStoryPage(body []byte, page int) (StoryPage, error) {

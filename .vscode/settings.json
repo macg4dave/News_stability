@@ -6,5 +6,9 @@
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": { "source.organizeImports": "explicit" }
   },
-  "python.terminal.useEnvFile": true
+  "python.terminal.useEnvFile": true,
+  "python.analysis.extraPaths": [
+    "c:\\Users\\dave.HOMEAD\\.vscode\\extensions\\benpaddlejones.pico-bridge-2.3.46\\emulator\\mock\\typings",
+    "c:\\Users\\dave.HOMEAD\\.vscode\\extensions\\benpaddlejones.pico-bridge-2.3.46\\emulator\\mock\\micropython"
+  ]
 }

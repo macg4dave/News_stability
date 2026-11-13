@@ -73,7 +73,7 @@ func TestStoryExcerptAndPictureUseSanitizedPresentation(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		fmt.Fprint(w, `{"stories":[{"story_hash":"1:excerpt","story_title":"Preview","image_urls":["http://publisher.invalid/photo.jpg"],"secure_image_urls":{"http://publisher.invalid/photo.jpg":"https://images.invalid/signed.jpg"},"story_content":"<script>secret()</script><p>A <em>read</em>er &amp; friend.</p><img src='https://images.invalid/inline.jpg' alt='Coastal scene'>"}]}`)
+		fmt.Fprint(w, `{"stories":[{"story_hash":"1:excerpt","story_title":"Preview","story_timestamp":"1704067200","image_urls":["http://publisher.invalid/photo.jpg"],"secure_image_urls":{"http://publisher.invalid/photo.jpg":"https://images.invalid/signed.jpg"},"story_content":"<script>secret()</script><p>A <em>read</em>er &amp; friend.</p><img src='https://images.invalid/inline.jpg' alt='Coastal scene'>"}]}`)
 	})
 	response, err := client.Get(reader.URL + "/api/feeds/1/stories")
 	if err != nil {
@@ -82,9 +82,10 @@ func TestStoryExcerptAndPictureUseSanitizedPresentation(t *testing.T) {
 	defer response.Body.Close()
 	var result struct {
 		Stories []struct {
-			Excerpt string `json:"excerpt"`
-			Picture string `json:"picture"`
-			HTML    string `json:"html"`
+			PublishedAt string `json:"published_at"`
+			Excerpt     string `json:"excerpt"`
+			Picture     string `json:"picture"`
+			HTML        string `json:"html"`
 		} `json:"stories"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
@@ -92,6 +93,9 @@ func TestStoryExcerptAndPictureUseSanitizedPresentation(t *testing.T) {
 	}
 	if response.StatusCode != http.StatusOK || len(result.Stories) != 1 || result.Stories[0].Excerpt != "A reader & friend." {
 		t.Fatalf("unexpected excerpt response: HTTP %d, %+v", response.StatusCode, result)
+	}
+	if result.Stories[0].PublishedAt != "2024-01-01T00:00:00Z" {
+		t.Fatalf("publication instant missing from reader response: %+v", result.Stories[0])
 	}
 	if result.Stories[0].Picture != "https://images.invalid/signed.jpg" || !strings.Contains(result.Stories[0].HTML, `data-picture-src="https://images.invalid/inline.jpg"`) || strings.Contains(result.Stories[0].HTML, " src=") {
 		t.Fatalf("picture contract was not sanitized: %+v", result.Stories[0])

@@ -4,6 +4,21 @@ News Stability includes the following third-party code. These notices apply to
 the identified portions and do not choose a license for the rest of this project.
 No project names or authors are used to imply endorsement.
 
+## Design references
+
+The three-layout reading experience uses Whisper and Fluent Reader as behavior
+references. No code, translated source, artwork, fonts, icons or branding from
+these projects is included. The implementation is original native JavaScript/CSS.
+
+- Whisper: https://github.com/Nyancat-Labs/whisper_feed at
+  `2fadadd28524012d055b406b6f38c8f2720b694a` (inspected source: GPL-3.0-or-later).
+- Fluent Reader: https://github.com/yang991178/fluent-reader at
+  `5912070309759eff37204a5046caba3c780fa4c0` (inspected source: BSD-3-Clause).
+
+Pinned files, review decisions, and the obligations for any future import are
+recorded in `docs/open-source-reuse.md`. The references' licenses do not replace
+the licenses of the actual incorporated components listed below.
+
 ## Adapted source
 
 ### Miniflux — Apache License 2.0

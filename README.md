@@ -5,7 +5,7 @@ A focused web reader for an existing self-hosted **NewsBlur** server at
 NewsBlur remains responsible for feeds, stories, intelligence, and Daily Briefing
 generation. We present those capabilities through a simpler reading interface.
 
-The reader includes login/logout, server-side sessions, nested feeds, paginated
+The reader includes login/logout, server-side sessions, nested feeds, continuously loaded
 sanitized articles, explicit read/unread and save/unsave, saved stories, feed
 search/unread filtering, themes and keyboard navigation. Daily Briefing presents
 NewsBlur summaries and source stories. Native/race, synthetic TLS, browser smoke,
@@ -24,20 +24,33 @@ version stays visible while it loads; successful full text replaces it in the
 article pane. If NewsBlur cannot provide full text, the reader says so and keeps
 the feed version and original link. Extraction remains a NewsBlur responsibility.
 
+Cards and Magazine open a focused article at the top of the reading area.
+List expands the article directly beneath its headline, pushing later stories
+down. Click the expanded headline again or Close story to collapse it.
+Back to stories (or `g` then `s`) restores your selected story and browsing position.
+
+Scroll toward the end of the collection to load more stories automatically.
+Loaded stories stay in place, including expanded List articles. Loading pauses
+offline and offers Retry loading stories after an error; Load more stories is
+also available for keyboard access. Refresh starts again at the newest batch.
+
+List and Magazine group consecutive publication days in your browser timezone;
+Cards show publication timestamps. Last refreshed records the last successful
+collection reload. Layout, font, theme and picture settings stay in your browser.
+
+Milestones 1–5 are implemented. Local verification passes; installed-server,
+human accessibility, HTTPS/upgrade/rollback and distribution-license gates remain
+open in [release acceptance](docs/acceptance.md).
+
 ## Documentation
 
 - [Architecture and project layout](docs/architecture.md)
-- [Development and configuration](docs/development.md)
-- [Frontend source and build/debug flow](docs/frontend.md)
-- [Session design](docs/sessions.md)
-- [HTTPS deployment and recovery](docs/deployment.md)
+- [Development, configuration and debugging](docs/debugging.md)
 - [Installed acceptance checklist](docs/acceptance.md)
 - [Open-source reuse review](docs/open-source-reuse.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
-- [Debugging: Go, VS Code, Docker](docs/debugging.md)
 - [Roadmap and milestone acceptance](docs/roadmap.md)
 - [Blockers and unverified dependencies](docs/blockers.md)
-- [Prioritized backlog](docs/backlog.md)
 - [AI rule index](AGENTS.md)
 
 ## Native Go development
@@ -85,7 +98,7 @@ Files in `web/` are mounted for immediate editing.
 Set `WEB_PORT`, `PUBLIC_ORIGIN`, and `NEWSBLUR_ORIGIN` in `.env` as needed, then rebuild.
 Use an origin without a trailing slash, for example `https://news101.lan`.
 The container must be able to resolve and reach that host.
-Go owns the HTTPS upstream connection. See [CA configuration](docs/development.md)
+Go owns the HTTPS upstream connection. See [CA configuration](docs/debugging.md)
 if the server uses a private certificate authority.
 
 ```sh
@@ -103,6 +116,7 @@ go build ./...
 npm ci --ignore-scripts
 npx playwright install chromium
 npm run test:browser
+npm run review:ui
 docker build --target test -f Dockerfile.reader .
 python -B -m unittest discover -s tests -v
 docker compose config --quiet
@@ -116,13 +130,15 @@ it checks static/proxy/unauthenticated boundaries without accessing `news101.lan
 or requiring credentials. Go TLS fixtures and Chromium browser API fixtures use
 synthetic data only. Browser checks require Node 24+ and Python. Linux CI also runs
 `go test -race ./...`. See [verification rules](docs/ai/testing.md) for details.
+`npm run review:ui` writes a 36-image synthetic review gallery to
+`.local/ui-review/index.html`, covering every layout/theme on desktop and phone.
 
 ## Early development references
 
 - [NewsBlur API](https://www.newsblur.com/api)
 - [NewsBlur source](https://github.com/samuelclay/newsblur)
 - [Local NewsBlur](https://news101.lan)
-- [Development and integration notes](docs/development.md)
+- [Development and integration notes](docs/debugging.md)
 - [AI contributor instructions](AGENTS.md)
 
 Development binds to loopback by default. This HTTP setup is for local work;

@@ -15,6 +15,7 @@ type Story struct {
 	Title          string            `json:"story_title"`
 	Author         string            `json:"story_authors"`
 	Date           string            `json:"story_date"`
+	PublishedAt    string            `json:"-"`
 	URL            string            `json:"story_permalink"`
 	Content        string            `json:"-"`
 	Pictures       []string          `json:"-"`
