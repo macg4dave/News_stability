@@ -3,6 +3,22 @@
 Use Go 1.26+, Node 24+, Python, and Docker Desktop with Linux containers.
 Follow [verification rules](ai/testing.md); keep account data out of logs/fixtures.
 
+## Automatic checks
+
+After installing dependencies (`npm ci --ignore-scripts` and
+`npx playwright install chromium`), run `npm test`. For only the real Docker
+browser path, run `npm run test:e2e`. Both return a nonzero exit code on failure;
+neither requires screenshots or AI review. The latter uses a separate synthetic
+HTTPS NewsBlur stack and cleans up its own containers and temporary certificate
+volume without stopping the active preview. Failure details are printed, with
+browser assertion results in `test-results/e2e.xml`.
+
+An image assertion checks actual decoding, not just the presence of an `<img>`
+or an HTTP 200. A passing synthetic test does not resolve an installed-server
+failure. For that, collect the failing request's status/error code and installed
+NewsBlur version using the acceptance process; do not share cookies, signed
+image URLs, or private story content in logs.
+
 ## Quick review
 
 ```powershell

@@ -15,6 +15,10 @@ feed fetcher, publisher scraper, ranking system or story database.
   `layout.js`, `appearance.js`, `pictures.js`, `dates.js`, `infinite.js`, `keyboard.js`
   `scroll-read.js` and `relations.js` own their focused presentation responsibilities.
 - Nginx serves static assets and proxies `/api/` to Go with CSP and auth limits.
+- `tests/e2e` and `compose.e2e.yaml`: a test-only synthetic HTTPS NewsBlur server
+  behind the shipped Go/Nginx images. Chromium checks behavior and image decoding
+  without API/image mocks or screenshot judgments. `npm test` runs this with Go,
+  race, static security, notices and the faster browser contract tests in CI.
 
 The three layouts share one ordered collection and action model. Layout changes
 are browser-local and do not request new data. List reparents one reusable article

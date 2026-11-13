@@ -70,6 +70,22 @@ open in [release acceptance](docs/acceptance.md).
 
 ## Native Go development
 
+Go includes built-in testing: `go test ./...` runs tests and
+`go test -race ./...` checks for data races on supported toolchains.
+
+For the complete automated application gate:
+
+```sh
+npm ci --ignore-scripts
+npx playwright install chromium
+npm test
+```
+
+Requires Go, Node 24+, Python, and Docker with Linux containers. CI runs the same
+gate. `npm run test:e2e` tests the built Docker app against synthetic NewsBlur
+over verified HTTPS, including actual image decoding in Chromium. Pass/fail
+uses assertions, with no screenshot or AI review. See [testing](docs/ai/testing.md).
+
 Requires Go 1.26 or newer. Go modules include the maintained bluemonday HTML sanitizer.
 
 ```sh

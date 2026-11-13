@@ -135,6 +135,25 @@ Use [release acceptance](acceptance.md) to record evidence and [open gates](bloc
 for the missing inputs and unblocking actions. No routine test accesses real
 NewsBlur account data. Local implementation is not blocked by these release gates.
 
+## Automatic regression testing (13 November 2026)
+
+- [x] Required AI guidance for Go test placement, observable regression cases,
+  synthetic TLS boundaries, meaningful assertions and deterministic concurrency;
+  linked from the contributor entry point and verification rules.
+- [x] One command, `npm test`, runs Go checks, Linux race tests, security/notices,
+  browser contracts and shipped-container tests; CI runs the same command.
+- [x] Synthetic HTTPS NewsBlur plus actual Nginx/Go images, with ephemeral trusted
+  certificate and isolated Compose project; no real accounts or API/image mocks.
+- [x] Chromium asserts actual decoded images in Cards/Magazine/List and inline
+  articles on desktop/mobile. Test hidden pictures, image failures/invalid bytes,
+  full-text failure, endless loading, read confirmation/rejection, logout and expiry.
+- [x] Screenshot review removed from required CI; deterministic assertions decide
+  success and JUnit failure details are retained.
+- [ ] Diagnose the reported installed-server image outage. Synthetic signed images
+  load successfully; this does not prove the installed server's image contract or
+  deployed configuration. Record sanitized failure status and version evidence
+  through installed acceptance before claiming a fix.
+
 ## Copying and follow-on work
 
 Actual imports require pinned source/local-path mappings, copyright and modification

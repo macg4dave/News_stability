@@ -2,6 +2,8 @@
   "name": "news-stability-checks",
   "private": true,
   "scripts": {
+    "test": "node scripts/check.cjs",
+    "test:e2e": "node scripts/test-e2e.cjs",
     "test:browser": "playwright test",
     "review:ui": "node scripts/review-ui.cjs"
   },

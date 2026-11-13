@@ -54,4 +54,6 @@ Validate configuration once at startup. Keep secrets out of errors and logs.
 Use graceful shutdown with a deadline. Do not expose diagnostic handlers on the
 public application mux.
 
-See [design](design.md) for whole-flow review and [testing](testing.md) for checks.
+Before changing Go behavior or tests, follow [Go test design](go-testing.md)
+for test placement, assertions, fixtures and deterministic concurrency.
+See [design](design.md) for whole-flow review and [verification](testing.md) for commands.

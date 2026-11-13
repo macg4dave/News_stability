@@ -10,7 +10,7 @@ not optional background. Tool-specific instruction files point here to avoid dri
 | When | Required rules |
 | --- | --- |
 | Every task | [Workflow](docs/ai/workflow.md), [design](docs/ai/design.md) |
-| Go changes | [Go](docs/ai/go.md), [testing](docs/ai/testing.md) |
+| Go code or tests | [Go](docs/ai/go.md), [Go test design](docs/ai/go-testing.md), [verification](docs/ai/testing.md) |
 | API, auth, UI content, or proxy changes | [NewsBlur integration](docs/ai/newsblur.md), [testing](docs/ai/testing.md) |
 | Debugging or operational changes | [Debugging](docs/debugging.md) |
 

@@ -5,6 +5,7 @@ prevent a claim that the three-view release is ready for general deployment.
 
 | Evidence / missing input | Impact | Unblocking action |
 | --- | --- | --- |
+| User reports no installed story images loading; real-container synthetic Chromium image decoding succeeds. No installed failure status/version evidence is available. | The reported outage is not yet reproduced or repaired; synthetic passes must not be presented as a fix. | Record failing relay/direct-image status and installed version with a dedicated synthetic account through acceptance; add the observed contract to the automated fixture and repair it. |
 | No installed version or dedicated synthetic-account acceptance evidence is available in this workspace. Routine tests intentionally do not access real accounts. | Installed image hosts, full text, briefing, timestamps and intelligence contracts remain unverified. | Operator provisions/authorizes a dedicated fixture account and records the installed checks in [acceptance](acceptance.md). |
 | Synthetic Chromium checks and screenshots cannot establish human screen-reader acceptance or every intended browser. | Final accessibility/browser sign-off is open. | Complete the human acceptance matrix and record versions/results. |
 | Local preview uses loopback HTTP; production ingress and previous deployed images/configuration are outside this workspace. | HTTPS/session, upgrade and rollback acceptance is open. | Exercise the actual target environment using the acceptance checklist. |
