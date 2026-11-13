@@ -43,6 +43,10 @@
       </aside>
       <section class="story-list" aria-labelledby="stories-heading">
         <div class="panel-heading"><h2 id="stories-heading">Choose a feed</h2></div>
+        <div class="layout-control">
+          <label for="story-layout">Story layout</label>
+          <select id="story-layout"><option value="cards">Cards</option><option value="magazine">Magazine</option><option value="list">List</option></select>
+        </div>
         <form id="story-filters" class="story-filters" hidden>
           <label for="read-filter">Show</label>
           <select id="read-filter"><option value="all">All stories</option><option value="unread">Unread stories</option></select>
@@ -56,6 +60,7 @@
         <div class="pagination"><button id="previous" type="button" hidden>Previous page</button><span id="page-label"></span><button id="next" type="button" hidden>Next page</button></div>
       </section>
       <article id="article" class="article" aria-labelledby="article-title">
+        <button id="back-to-stories" class="back-to-stories" type="button" hidden>Back to stories</button>
         <p class="eyebrow" id="article-feed">SETTLE IN</p>
         <h1 id="article-title" tabindex="-1">A little space for the stories that matter.</h1>
         <p id="article-meta" class="muted">Choose a feed, then a story to start reading.</p>

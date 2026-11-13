@@ -66,6 +66,33 @@ func TestLogoutFailureInvalidatesSessionAndDiscardsInflightRead(t *testing.T) {
 }
 
 // All fixtures are invented; this server never contacts an installed NewsBlur.
+func TestStoryExcerptUsesSanitizedPresentation(t *testing.T) {
+	reader, client, _ := loggedInReader(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/reader/feed/1" {
+			t.Errorf("unexpected upstream request %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		fmt.Fprint(w, `{"stories":[{"story_hash":"1:excerpt","story_title":"Preview","story_content":"<script>secret()</script><p>A <em>read</em>er &amp; friend.</p><img src='https://tracker.invalid/pixel'>"}]}`)
+	})
+	response, err := client.Get(reader.URL + "/api/feeds/1/stories")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	var result struct {
+		Stories []struct {
+			Excerpt string `json:"excerpt"`
+		} `json:"stories"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK || len(result.Stories) != 1 || result.Stories[0].Excerpt != "A reader & friend." {
+		t.Fatalf("unexpected excerpt response: HTTP %d, %+v", response.StatusCode, result)
+	}
+}
+
 func loggedInReader(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *http.Client, string) {
 	t.Helper()
 	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

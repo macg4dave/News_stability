@@ -53,6 +53,31 @@ input { min-width:0; width:100%; padding:.7rem; border:1px solid var(--line); ba
 .story small { display:block; color:var(--muted); margin-top:.5rem; }
 .story.read strong { font-weight:400; }
 .story[aria-current="true"] { background:var(--wash); box-shadow:inset 3px 0 var(--accent); }
+.layout-control { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem; padding:.8rem 1.2rem; border-bottom:1px solid var(--line); font-size:.85rem; }
+.story-list { container-type:inline-size; }
+.stories li { min-width:0; }
+.story { overflow-wrap:anywhere; }
+.reader[data-layout="cards"],.reader[data-layout="magazine"] { grid-template-columns:minmax(13rem,16%) minmax(20rem,40%) minmax(0,1fr); }
+[data-layout="cards"] .stories,[data-layout="magazine"] .stories { display:grid; grid-template-columns:1fr; gap:1rem; padding:1rem; }
+[data-layout="cards"] .story,[data-layout="magazine"] .story { height:100%; border:1px solid var(--line); border-radius:.6rem; background:var(--panel); padding:1.4rem; }
+[data-layout="cards"] .story strong { font:normal 1.3rem/1.35 Georgia,serif; }
+[data-layout="cards"] .story { min-height:10rem; }
+[data-layout="magazine"] .story { border-radius:0; border-width:0 0 1px; background:transparent; }
+[data-layout="magazine"] .story strong { font:normal 1.25rem/1.4 Georgia,serif; }
+[data-layout="magazine"] .stories li:first-child .story { padding-block:2rem; border-top:3px solid var(--accent); }
+[data-layout="magazine"] .stories li:first-child strong { font-size:clamp(1.65rem,3vw,2.25rem); line-height:1.2; }
+[data-layout="cards"] .story:hover,[data-layout="magazine"] .story:hover,
+[data-layout="cards"] .story[aria-current="true"],[data-layout="magazine"] .story[aria-current="true"] { background:var(--wash); }
+[data-layout="list"] .story { padding:.75rem 1.2rem; }
+[data-layout="list"] .story small { margin-top:.25rem; font-size:.75rem; }
+.story-excerpt { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; color:var(--muted); font-size:.9rem; line-height:1.6; margin-top:1rem; }
+[data-layout="list"] .story-excerpt { display:none; }
+[data-layout="magazine"] .stories li:first-child .story-excerpt { -webkit-line-clamp:4; font-size:1rem; }
+.back-to-stories { margin-bottom:1.5rem; font-size:.85rem; }
+@container (min-width:32rem) {
+  [data-layout="cards"] .stories,[data-layout="magazine"] .stories { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  [data-layout="magazine"] .stories li:first-child { grid-column:span 2; }
+}
 .pagination { display:flex; justify-content:space-between; flex-wrap:wrap; gap:.5rem; padding:1rem; align-items:center; font-size:.8rem; }
 .article { padding:clamp(1.5rem,4vw,4rem); max-width:60rem; overflow-wrap:anywhere; }
 .article h1 { font-size:clamp(1.8rem,3vw,2.8rem); }
@@ -73,7 +98,7 @@ dialog::backdrop { background:rgb(0 0 0 / .45); }
 .shortcuts { display:grid; grid-template-columns:max-content 1fr; gap:.7rem 1.5rem; }
 .shortcuts dd { margin:0; }
 kbd { border:1px solid var(--line); border-radius:.2rem; padding:.1rem .35rem; font-size:.85rem; }
-@media (max-width:1100px) { .reader { grid-template-columns:15rem minmax(0,1fr); } .article { grid-column:1/-1; border-top:1px solid var(--line); max-width:52rem; margin:auto; width:100%; } .story-list { border-right:0; } }
+@media (max-width:1100px) { .reader,.reader[data-layout] { grid-template-columns:15rem minmax(0,1fr); } .article { grid-column:1/-1; border-top:1px solid var(--line); max-width:52rem; margin:auto; width:100%; } .story-list { border-right:0; } }
 @media (max-width:600px) { .masthead { padding:1rem; gap:.6rem; flex-wrap:wrap; } .tagline { display:none; } #account { font-size:.8rem; } .reader { display:block; } .subscriptions { border-right:0; border-bottom:1px solid var(--line); } #feed-tree { max-height:17rem; overflow:auto; } .article { padding:1.5rem; } .signin { margin:2rem auto; } .notice { margin:1rem; } }
 @media (prefers-color-scheme:dark) { :root { --paper:#1b2420; --panel:#222e27; --ink:#e3e8de; --muted:#a3b2a5; --line:#3a473d; --accent:#9bcdaf; --wash:#2c3c30; --danger:#ffb0a5; } #login-submit { color:var(--paper); } }
 @media (prefers-reduced-motion:no-preference) { button { transition:background-color .12s; } }

@@ -1,10 +1,12 @@
 import { KeyboardHandler } from "./keyboard.js";
 import { initializeAppearance } from "./appearance.js";
 import { getRelationBuckets, pageRelations } from "./relations.js";
+import { initializeLayout } from "./layout.js";
 
 const el = (id) => document.getElementById(id);
-const state = { session: null, feeds: new Map(), folders: [], feed: null, view: "feed", page: 1, stories: [], story: null, selected: null, actionPending: false, resume: null, expiryTimer: null, epoch: 0, feedRequest: null, storyRequest: null, articleRequest: null };
+const state = { session: null, feeds: new Map(), folders: [], feed: null, view: "feed", page: 1, stories: [], story: null, originStory: null, selected: null, actionPending: false, resume: null, expiryTimer: null, epoch: 0, feedRequest: null, storyRequest: null, articleRequest: null };
 initializeAppearance();
+initializeLayout();
 el("show-appearance").addEventListener("click", () => el("appearance").showModal());
 
 class APIError extends Error {
@@ -297,6 +299,8 @@ function clearArticle() {
   state.articleRequest?.abort();
   state.story = null;
   state.selected = null;
+  state.originStory = null;
+  el("back-to-stories").hidden = true;
   renderActions();
   message("article-title", "A little space for the stories that matter.");
   message("article-feed", "SETTLE IN");
@@ -311,14 +315,16 @@ function clearArticle() {
 
 function storyMeta(story) {
   const readingTime = story.reading_minutes > 0 ? `About ${story.reading_minutes} min read` : "";
-  return [story.kind === "briefing_summary" ? "NewsBlur summary" : "", story.feed_title, story.author, story.date, readingTime, story.saved ? "Saved" : ""].filter(Boolean).join(" · ");
+  return [story.kind === "briefing_summary" ? "NewsBlur summary" : "", story.feed_title, story.author, story.date, readingTime, story.read ? "Read" : "", story.saved ? "Saved" : ""].filter(Boolean).join(" · ");
 }
 
-function selectStory(story) {
+function selectStory(story, preserveOrigin = false) {
   state.articleRequest?.abort();
   el("article-status").hidden = true;
   state.story = story.hash;
   state.selected = story;
+  if (!preserveOrigin && state.stories.some((item) => item.hash === story.hash)) state.originStory = story.hash;
+  el("back-to-stories").hidden = !state.originStory;
   renderActions();
   message("article-title", story.title || "Untitled story");
   message("article-feed", story.feed_title || state.feeds.get(story.feed_id)?.title || state.feed?.title || "NewsBlur");
@@ -386,6 +392,12 @@ async function changeStoryState(field) {
 
 el("toggle-read").addEventListener("click", () => changeStoryState("read"));
 el("toggle-save").addEventListener("click", () => changeStoryState("saved"));
+el("back-to-stories").addEventListener("click", () => {
+  const origin = [...el("stories").querySelectorAll(".story")].find((button) => button.dataset.hash === state.originStory);
+  if (!origin) return;
+  origin.focus({ preventScroll: true });
+  origin.scrollIntoView({ block: "center", behavior: "instant" });
+});
 
 function renderStories() {
   const list = document.createDocumentFragment();
@@ -401,6 +413,19 @@ function renderStories() {
     const meta = document.createElement("small");
     meta.textContent = storyMeta(story);
     button.append(title, meta);
+    if (story.excerpt) {
+      const excerpt = document.createElement("span");
+      excerpt.className = "story-excerpt";
+      excerpt.textContent = story.excerpt;
+      // The title and metadata name the button; the excerpt remains available
+      // in reading order without making keyboard controls excessively verbose.
+      const titleID = `story-title-${list.childElementCount}`;
+      const metaID = `story-meta-${list.childElementCount}`;
+      title.id = titleID;
+      meta.id = metaID;
+      button.setAttribute("aria-labelledby", `${titleID} ${metaID}`);
+      button.append(excerpt);
+    }
     button.addEventListener("click", () => selectStory(story));
     row.append(button);
     list.append(row);
@@ -446,7 +471,7 @@ function renderConnections(story) {
 
 async function loadLinkedStory(reference) {
   const cached = state.stories.find((story) => story.hash === reference.hash);
-  if (cached) { selectStory(cached); return; }
+  if (cached) { selectStory(cached, true); return; }
   state.articleRequest?.abort();
   const controller = new AbortController();
   state.articleRequest = controller;
@@ -457,7 +482,7 @@ async function loadLinkedStory(reference) {
     const story = await api(`/api/stories/${encodeURIComponent(reference.hash)}`, { signal: controller.signal });
     if (epoch !== state.epoch || controller.signal.aborted) return;
     story.feed_title ||= reference.feed_title || state.feeds.get(story.feed_id)?.title || "NewsBlur";
-    selectStory(story);
+    selectStory(story, true);
   } catch (error) {
     if (epoch === state.epoch && !controller.signal.aborted) await readingError(error, "article-status");
   }
