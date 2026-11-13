@@ -96,3 +96,12 @@ This implementation pass retains the requested deferred-test workflow. Build,
 syntax, configuration, and notice-consistency checks are separate from the still
 pending behavioral/browser test pass. No new milestone is marked complete.
 
+
+## Browser verification tooling
+
+`@playwright/test` 1.65.0 is pinned with its transitive dependencies in
+`package-lock.json`. It is development-only (Apache-2.0); npm distributions retain
+upstream LICENSE/NOTICE files, including the Puppeteer-derived-code notice. No
+Playwright source is copied into reader assets or runtime containers. New reader
+state actions and test fixtures are original project code; existing adapted-source
+and Go license notices remain unchanged and their generated bundle is checked.

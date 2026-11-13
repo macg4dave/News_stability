@@ -41,9 +41,8 @@ scripts, styles, forms, frames, embedded media, remote images, IDs, and event
 handlers. Original links accept only absolute HTTP(S) URLs without credentials.
 The static server also supplies a restrictive Content Security Policy.
 
-This is implemented source, not a browser-verified or accessible-release claim.
-The test pass and installed-server acceptance are deliberately deferred while the
-larger implementation slice is being built.
+Ten Chromium smoke tests cover desktop/mobile reading and failure flows.
+Human accessibility/contrast review and installed acceptance remain open.
 
 ## Reused reading features
 
@@ -79,4 +78,18 @@ backlinks on the current page. Linked stories already loaded open immediately;
 other NewsBlur references use a fixed story-hash read endpoint. The same sanitizer
 and safe-link policy apply to feed, briefing, and individual-story output.
 Network failures preserve the current article and reading page. The inspected
-upstream contracts still require installed-server acceptance and browser tests.
+upstream contracts still require installed-server acceptance. Browser smoke
+coverage uses synthetic API responses and does not establish the installed contract.
+
+## Reading actions and filters
+
+The article offers explicit read/unread and save/unsave controls. Selection and
+keyboard movement never mark stories read automatically. A write changes the
+visible state after confirmation only; failure keeps the article and reports an
+uncertain/rejected result without retrying. Refresh reloads story state from
+NewsBlur. Saved stories has its own read-only paginated view.
+
+Feed search and all/unread selection go to NewsBlur, with filters retained across
+pages. Search availability depends on the account/server; there is no local index.
+Run browser checks with `npm ci --ignore-scripts`, `npx playwright install chromium`,
+and `npm run test:browser`. Runtime assets remain plain ES modules and CSS.

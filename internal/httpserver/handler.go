@@ -12,9 +12,11 @@ func NewHandler(auth *Auth) http.Handler {
 		mux.HandleFunc("POST /api/login", auth.login)
 		mux.HandleFunc("POST /api/logout", auth.logout)
 		mux.HandleFunc("GET /api/feeds", auth.feeds)
+		mux.HandleFunc("GET /api/saved", auth.savedStories)
 		mux.HandleFunc("GET /api/feeds/{id}/stories", auth.stories)
 		mux.HandleFunc("GET /api/briefing", auth.briefing)
 		mux.HandleFunc("GET /api/stories/{hash}", auth.linkedStory)
+		mux.HandleFunc("POST /api/stories/{hash}/state", auth.storyState)
 	}
 	return mux
 }

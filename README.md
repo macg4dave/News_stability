@@ -5,12 +5,12 @@ A focused web reader for an existing self-hosted **NewsBlur** server at
 NewsBlur remains responsible for feeds, stories, intelligence, and Daily Briefing
 generation. We present those capabilities through a simpler reading interface.
 
-Current source includes login/logout, server-side sessions, CSRF checks, nested
-feed navigation, paginated stories, and sanitized article presentation. The new
-flow compiles but its combined tests and installed-server acceptance remain
-pending. The frontend uses native JavaScript/CSS, with no frontend build step.
-A candidate Daily Briefing view reads NewsBlur summaries and source stories.
-Read/unread and save/unsave actions remain planned.
+The reader includes login/logout, server-side sessions, nested feeds, paginated
+sanitized articles, explicit read/unread and save/unsave, saved stories, feed
+search/unread filtering, themes and keyboard navigation. Daily Briefing presents
+NewsBlur summaries and source stories. Native/race, synthetic TLS, browser smoke,
+and isolated proxy checks cover these flows; installed acceptance remains open.
+The frontend uses native JavaScript/CSS with no bundling step.
 
 ## Documentation
 
@@ -18,6 +18,8 @@ Read/unread and save/unsave actions remain planned.
 - [Development and configuration](docs/development.md)
 - [Frontend source and build/debug flow](docs/frontend.md)
 - [Session design](docs/sessions.md)
+- [HTTPS deployment and recovery](docs/deployment.md)
+- [Installed acceptance checklist](docs/acceptance.md)
 - [Open-source reuse review](docs/open-source-reuse.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 - [Debugging: Go, VS Code, Docker](docs/debugging.md)
@@ -68,6 +70,9 @@ go fmt ./...
 go vet ./...
 go test ./...
 go build ./...
+npm ci --ignore-scripts
+npx playwright install chromium
+npm run test:browser
 docker build --target test -f Dockerfile.reader .
 python -B -m unittest discover -s tests -v
 docker compose config --quiet
@@ -78,7 +83,8 @@ docker compose -f compose.yaml -f compose.test.yaml --profile test down
 
 The integration stack starts Nginx and Go with an unreachable synthetic upstream;
 it checks static/proxy/unauthenticated boundaries without accessing `news101.lan`
-or requiring credentials. The new complete authentication/reading test pass remains pending. Linux CI also runs
+or requiring credentials. Go TLS fixtures and Chromium browser API fixtures use
+synthetic data only. Browser checks require Node 24+ and Python. Linux CI also runs
 `go test -race ./...`. See [verification rules](docs/ai/testing.md) for details.
 
 ## Early development references

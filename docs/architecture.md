@@ -25,11 +25,11 @@ Browser -> Nginx :8080
 ```
 
 The temporary `/newsblur/*` passthrough has been removed. Explicit Go endpoints
-own login/logout, cookie sessions, feed navigation, and story pages. Upstream
+own login/logout, cookie sessions, feed navigation, and story pages, explicit story-state actions, feed search and saved reading. Upstream
 cookies stay in a per-reader server-side jar; the browser receives an opaque
 reader session cookie and a CSRF token. Story HTML is sanitized before JSON output.
-The source compiles, but the new reading/session flow has not yet had its test or
-installed-server acceptance pass. See [sessions](sessions.md) and [contract
+Synthetic TLS login/session tests and isolated proxy checks pass. Synthetic reading/action/briefing and Chromium smoke coverage pass;
+installed-server acceptance remains open. See [sessions](sessions.md) and [contract
 discovery](newsblur-contract.md). No unrestricted upstream proxy is exposed.
 
 ## Repository layout
@@ -62,7 +62,7 @@ Avoid empty layers and a public `pkg` tree for private server code.
 
 - HTTP handlers translate requests and responses; they do not absorb all logic.
 - The NewsBlur client owns upstream HTTP behavior and response types.
-- Session code owns authentication material and expiry; full-flow tests are pending.
+- Session code owns authentication material and expiry; synthetic login/logout tests pass.
 - The frontend owns layout and local interaction state; server data remains
   authoritative and failures must be visible to the reader.
 

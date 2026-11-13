@@ -73,7 +73,16 @@ func (a *Auth) stories(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusBadRequest, "invalid_request", "Choose a valid feed and page.")
 		return
 	}
-	result, err := e.Client.Stories(r.Context(), id, page)
+	filter := r.URL.Query().Get("read_filter")
+	if filter == "" {
+		filter = "all"
+	}
+	query := r.URL.Query().Get("query")
+	if (filter != "all" && filter != "unread") || len(query) > 256 {
+		apiError(w, http.StatusBadRequest, "invalid_request", "Choose all or unread stories and a search of at most 256 bytes.")
+		return
+	}
+	result, err := e.Client.Stories(r.Context(), id, page, filter, query)
 	if err != nil {
 		a.readingFailure(w, e, err, "Could not load stories. Your current view has been kept.")
 		return
@@ -88,6 +97,37 @@ func (a *Auth) stories(w http.ResponseWriter, r *http.Request) {
 		Page        int           `json:"page"`
 		CanContinue bool          `json:"can_continue"`
 	}{items, result.Page, result.Page < 10000 && (len(items) > 0 || result.Hidden > 0)})
+}
+
+func (a *Auth) savedStories(w http.ResponseWriter, r *http.Request) {
+	e, ok := a.readingSession(w, r)
+	if !ok {
+		return
+	}
+	page := 1
+	var err error
+	if value := r.URL.Query().Get("page"); value != "" {
+		page, err = strconv.Atoi(value)
+	}
+	if err != nil || page < 1 || page > 10000 {
+		apiError(w, http.StatusBadRequest, "invalid_request", "Choose a valid saved stories page.")
+		return
+	}
+	result, err := e.Client.SavedStories(r.Context(), page)
+	if err != nil {
+		a.readingFailure(w, e, err, "Could not load saved stories. Your current view has been kept.")
+		return
+	}
+	if _, ok := a.store.Get(e.ID); !ok {
+		apiError(w, http.StatusUnauthorized, "session_expired", "Your session expired. Sign in again.")
+		return
+	}
+	items := a.presentStories(result.Stories)
+	writeJSON(w, http.StatusOK, struct {
+		Stories     []readerStory `json:"stories"`
+		Page        int           `json:"page"`
+		CanContinue bool          `json:"can_continue"`
+	}{items, page, page < 10000 && (len(items) > 0 || result.Hidden > 0)})
 }
 
 // readerStory is the sole presentation contract for feed, briefing, and linked

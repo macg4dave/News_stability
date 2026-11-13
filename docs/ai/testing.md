@@ -33,6 +33,21 @@ docker compose -f compose.yaml -f compose.test.yaml --profile test down
 
 The Compose integration suite uses an unreachable synthetic origin and checks
 static/proxy/unauthenticated boundaries. Authenticated behavior belongs in Go TLS
-mock-upstream tests; those new full-flow cases remain pending. Never use real login credentials,
+mock-upstream tests covering login, reading, actions and briefing presentation. Never use real login credentials,
 subscriptions, read state, or briefings as routine fixtures. Documentation-only
 changes require link/command consistency review, not new tests mirroring prose.
+
+For reader UI changes, run the synthetic Chromium smoke suite:
+
+```sh
+npm ci --ignore-scripts
+npx playwright install chromium
+npm run test:browser
+```
+
+It requires Node 24+ and Python, serves local static assets, blocks external
+requests and supplies synthetic API responses. CI uses Playwright's
+`install --with-deps chromium` on Linux. Never attach real browser sessions or
+credentials to this routine suite. See [installed acceptance](../acceptance.md)
+for the separate operator checks. Use a distinct Compose project name when
+running integration checks alongside an active preview.

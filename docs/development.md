@@ -33,8 +33,14 @@ services:
 Keep local certificates and deployment overrides outside Git. The file must be
 readable by the non-root Go user. This loads trusted roots without bypassing
 certificate/hostname verification. Native Go can use a local absolute PEM path.
-The LAN certificate remains unverified in this development session; providing a
-configuration path is not evidence that the installed certificate chain is trusted.
+On 2026-11-13 the local preview was configured with ignored
+`compose.override.yaml`, mounting `.local/newsblur-ca.pem` read-only at
+`/etc/news-stability/newsblur-ca.pem`. This trusts the installed self-signed
+`news101.lan` certificate only in the reader. Its SHA-256 fingerprint is
+`9c6c5de87858b02015f0b61783f1f6a1283abd8e0d27f28000ab8a5bd4306235`.
+A Go client on the Compose network successfully prepared an anonymous NewsBlur
+session with certificate and hostname verification enabled. Review a replacement
+certificate before updating this local trust file; no global trust was changed.
 
 ## Request flow
 
@@ -67,18 +73,41 @@ required. Stop services with `docker compose down`.
 
 ## Verification status and next pass
 
-The larger source pass on 2026-11-13 intentionally defers test execution. Native
-Go build, Go formatting, JavaScript syntax, and diff checks passed. Existing
-health test callers and integration/static test sources were adapted to the new
-routes; new session/CSRF/expiry/sanitizer/reading cases still need implementation
-and execution. Earlier M0 and isolated-client test results do not validate this flow.
+Native Go formatting, vet, tests and build pass. The Linux race target covers
+session concurrency and all Go packages. Synthetic TLS tests cover authentication,
+CSRF/Origin, secure cookies, feed/search/saved reads, hidden pagination, write
+success/rejection/expiry and briefing presentation. Sanitizer tests reject active
+markup and tracking elements. Ten Chromium smoke tests cover the reader flows
+without contacting NewsBlur. Four isolated Compose checks include auth burst limits.
 
-The next pass should run the [verification commands](ai/testing.md), add focused
-TLS mock-upstream coverage for the complete auth/reading flow and hostile markup,
-then perform browser review. The Compose integration stack uses an unreachable
-synthetic origin and covers static/proxy/unauthenticated boundaries; it cannot
-prove authenticated behavior. Never use real subscriptions or login credentials
-as routine fixtures. Installed version and test-account acceptance remain B02.
+Browser checks require Node 24+ and Python on PATH:
+
+```sh
+npm ci --ignore-scripts
+npx playwright install chromium
+npm run test:browser
+```
+
+CI installs Chromium with OS dependencies. The browser suite serves static assets
+on `127.0.0.1:4173` and intercepts every API call with synthetic responses; unexpected
+API routes fail and external requests are blocked. Go TLS tests separately check
+real transport/handler behavior. These complementary tests are not installed-server
+acceptance. Traces/screenshots are disabled by default; artifacts are ignored.
+
+Remaining closure gates are in [acceptance](acceptance.md). The user confirmed
+preview sign-in and installed Daily Briefing with local AI. Exact deployed version,
+reader output against that installation, human accessibility, and final HTTPS/
+upgrade/rollback exercise remain open. See [deployment](deployment.md).
+
+## Local preview build, 2026-11-13
+
+`docker compose up --build -d app web` built both current images and started
+healthy Go/Nginx containers at `http://localhost:8080`. HTTP smoke checks returned
+200 for the reader page, both health endpoints, anonymous `/api/session`, all
+reader JavaScript/CSS modules, and the public third-party notice bundle. Session
+bootstrap supplied a CSRF token and an HttpOnly cookie; values were not recorded.
+Authenticated NewsBlur reading, browser interaction, and the full behavioral
+test pass remain unverified. The preview stack is left running for inspection.
 
 ## Third-party notice maintenance
 
@@ -88,3 +117,20 @@ After Go module or attribution changes, run `go mod download all`, then
 notice, and patent files into `licenses/`, records SHA-256 digests, and builds
 `web/third-party-notices.txt`. Review new terms before incorporating new code.
 See [reuse review](open-source-reuse.md) and [notices](../THIRD_PARTY_NOTICES.md).
+
+## Sign-in repair, 2026-11-13
+
+The container rejected the installed self-signed certificate before submitting
+login. The local trust configuration above fixes that connection failure, and
+certificate failures now return a specific `upstream_tls` error without request
+details. Both preview services were rebuilt/restarted and are healthy.
+
+Native formatting, vet, all existing Go tests and build passed, as did the Linux
+race target, static security test, both Compose configuration checks, and three
+isolated proxy/session integration tests. New synthetic TLS tests cover private
+certificate trust, login form/CSRF forwarding, reader session/token rotation,
+authenticated feed access, logout, untrusted certificate rejection, and rejection
+of invalid reader CSRF before upstream access. No real credentials were used.
+Broader expiry, hostile HTML, reading behavior, and browser acceptance coverage
+remain open. The user confirmed successful preview sign-in on 2026-11-13; authenticated
+reading and installed session lifecycle acceptance remain open.

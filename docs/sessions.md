@@ -1,7 +1,7 @@
 # Reader session design and current source
 
-The source implements the following flow. New session, reading, sanitizer, and
-browser behavior still need the combined test pass and installed-server acceptance.
+Synthetic TLS, session/race, sanitizer and Chromium smoke tests cover the flow
+below. Installed session policy and final HTTPS acceptance remain open.
 
 1. `GET /api/session` creates or returns an anonymous reader session and CSRF token.
 2. `POST /api/login` requires the configured reader Origin, the session cookie,
@@ -46,8 +46,15 @@ credentials belong in configuration, Git, logs, or browser storage.
 The final reader origin must terminate HTTPS before non-loopback use. Preserve
 browser Origin headers through the reverse proxy. The Nginx entry point forwards
 only explicit `/api/` reader routes and no longer forwards `/newsblur/` requests.
-Rate limiting and deployment/session security review remain release work; this
-development implementation is not ready for public exposure.
+Nginx limits login/session bootstrap bursts; see [deployment](deployment.md) for
+shared proxy-address behavior, HTTPS setup and operational limits. Final deployment
+and installed session acceptance remain release gates.
 
 Appearance preferences alone may persist in browser localStorage. Session, CSRF,
 credentials, subscriptions, and article data are never persisted there.
+
+Explicit story writes require the same exact Origin, reader cookie and CSRF
+checks as logout. Only read/unread/save/unsave actions are accepted and mapped to
+fixed upstream paths; writes are never retried automatically. The reader returns
+no raw upstream response or message. NewsBlur rejection is reported without
+claiming a state change; transport failure asks the reader to refresh before retry.

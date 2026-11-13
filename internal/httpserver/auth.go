@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"crypto/subtle"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"io"
@@ -151,6 +152,13 @@ func (a *Auth) login(w http.ResponseWriter, r *http.Request) {
 	}
 	credentials.Password = ""
 	if err != nil {
+		var authority x509.UnknownAuthorityError
+		var hostname x509.HostnameError
+		var invalid x509.CertificateInvalidError
+		if errors.As(err, &authority) || errors.As(err, &hostname) || errors.As(err, &invalid) {
+			apiError(w, http.StatusBadGateway, "upstream_tls", "Could not verify NewsBlur's secure connection. The reader's trust settings need attention.")
+			return
+		}
 		if errors.Is(err, newsblur.ErrRequestTooLarge) {
 			apiError(w, http.StatusBadRequest, "invalid_request", "The sign-in details are too long.")
 			return

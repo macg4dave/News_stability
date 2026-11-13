@@ -42,9 +42,11 @@ The [public API documentation](https://www.newsblur.com/api), reviewed on
 
 ## Remaining acceptance work
 
-1. Establish certificate trust on the host and in the reader container. The
-   passthrough has now been removed; the Go client always verifies TLS and
-   supports `NEWSBLUR_CA_FILE`. No trusted LAN CA has yet been supplied.
+1. Reader-local trust was established on 2026-11-13 using `NEWSBLUR_CA_FILE`
+   and an ignored read-only certificate mount. Anonymous Go preparation on the
+   Compose network succeeds with certificate/hostname verification enabled.
+   Host-wide trust was not changed; see the recorded fingerprint in
+   [development](development.md#configuration).
 2. Record the installed version and inspect its route definitions, including
    briefing settings, without invoking generation or changing preferences.
 3. Use a dedicated test account with synthetic subscriptions, outside routine
@@ -111,3 +113,36 @@ HTTP 404/405 briefing routes map to unsupported; disabled/empty responses are
 presented explicitly. No pending-generation state is inferred from an empty
 response. Login/session, briefing shape/availability, clustered-story permissions,
 and browser behavior still need the deferred acceptance/test pass.
+
+## Sign-in verification follow-up, 2026-11-13
+
+The reported generic connection error was reproduced as container TLS rejection
+of the installed self-signed certificate. The preview now loads that certificate
+as a local trust root. Anonymous Go preparation succeeds against the installed
+origin; no real login credentials were submitted during diagnostics. Synthetic
+TLS full-flow tests for trusted login, session/CSRF rotation, feed access, logout,
+untrusted certificates, and invalid reader CSRF pass natively and under Linux's
+race detector. The user confirmed successful preview sign-in on 2026-11-13.
+Authenticated reading and installed session lifecycle policy remain unverified.
+
+## Roadmap closure pass, 2026-11-13
+
+The user reports the installed server is current (exact version not known) and
+Daily Briefing works with local AI, which may generate more slowly. This confirms
+feature availability by user report, not the reader's authenticated response shape
+or a generation-progress endpoint. No generation was invoked during verification.
+
+The [NewsBlur API](https://www.newsblur.com/api) and reader source at
+`9aae0792a92e9ba6a329e41ee80db8dae246631e` were checked for the four explicit
+story-state endpoints and `story_hash` form parameter. Reader POST
+`/api/stories/{hash}/state` accepts only `read`, `unread`, `save`, or `unsave`;
+exact Origin/session/CSRF checks precede the fixed upstream call. A successful
+application result confirms the action; rejection and uncertain transport results
+are reported without retrying or forwarding raw upstream messages.
+
+Feed reads now forward allowlisted `read_filter=all|unread` and a bounded `query`
+using URL encoding; `/api/saved?page=...` reads `/reader/starred_stories`. Search
+permissions remain owned by NewsBlur. Synthetic TLS tests cover encoded search,
+hidden pagination, saved reading, allowed/rejected actions, session expiry and
+sanitized briefing/source output. Chromium tests separately cover the presentation.
+Installed acceptance and exact server identity still follow [the checklist](acceptance.md).

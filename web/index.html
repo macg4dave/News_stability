@@ -37,11 +37,20 @@
       <aside class="subscriptions" aria-labelledby="feeds-heading">
         <div class="panel-heading"><h2 id="feeds-heading">Your feeds</h2><button id="refresh" type="button">Refresh</button></div>
         <button id="daily-briefing" class="briefing-link" type="button">Daily Briefing</button>
+        <button id="saved-stories" class="briefing-link" type="button">Saved stories</button>
         <p id="feed-status" class="panel-status" role="status"></p>
         <nav id="feed-tree" aria-label="Feed folders"></nav>
       </aside>
       <section class="story-list" aria-labelledby="stories-heading">
         <div class="panel-heading"><h2 id="stories-heading">Choose a feed</h2></div>
+        <form id="story-filters" class="story-filters" hidden>
+          <label for="read-filter">Show</label>
+          <select id="read-filter"><option value="all">All stories</option><option value="unread">Unread stories</option></select>
+          <label for="story-query">Search this feed</label>
+          <input id="story-query" type="search" maxlength="256" placeholder="Search in NewsBlur">
+          <button type="submit">Apply</button>
+          <p class="muted">Search availability depends on your NewsBlur account.</p>
+        </form>
         <p id="story-status" class="panel-status" role="status">Your latest stories will appear here.</p>
         <ul id="stories" class="stories"></ul>
         <div class="pagination"><button id="previous" type="button" hidden>Previous page</button><span id="page-label"></span><button id="next" type="button" hidden>Next page</button></div>
@@ -50,6 +59,10 @@
         <p class="eyebrow" id="article-feed">SETTLE IN</p>
         <h1 id="article-title" tabindex="-1">A little space for the stories that matter.</h1>
         <p id="article-meta" class="muted">Choose a feed, then a story to start reading.</p>
+        <div id="story-actions" class="story-actions" hidden>
+          <button id="toggle-read" type="button">Mark read</button>
+          <button id="toggle-save" type="button">Save story</button>
+        </div>
         <p id="article-status" role="status" hidden></p>
         <a id="original" target="_blank" rel="noopener noreferrer" hidden>Read the original</a>
         <div id="article-content" class="article-content"></div>

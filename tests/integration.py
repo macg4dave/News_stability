@@ -44,10 +44,30 @@ class ReaderTests(unittest.TestCase):
         self.assertEqual(json.load(caught.exception)["code"], "csrf_rejected")
 
     def test_unauthenticated_reads_and_removed_passthrough(self):
-        for path, status in (("/api/feeds", 401), ("/api/feeds/1/stories", 401), ("/newsblur/api/login", 404)):
+        for path, status in (("/api/feeds", 401), ("/api/feeds/1/stories", 401), ("/api/saved", 401), ("/newsblur/api/login", 404)):
             with self.assertRaises(urllib.error.HTTPError) as caught:
                 self.client.open(self.base + path)
             self.assertEqual(caught.exception.code, status)
+
+    def test_z_auth_rate_limit_leaves_read_routes_available(self):
+        # Invalid Origin rejects before any upstream access. Run after bootstrap
+        # checks because this intentionally fills this client's authentication bucket.
+        limited = False
+        for _ in range(25):
+            request = urllib.request.Request(self.base + "/api/login", data=b'{}', headers={
+                "Content-Type": "application/json", "Origin": "https://other.invalid",
+            })
+            with self.assertRaises(urllib.error.HTTPError) as caught:
+                self.client.open(request)
+            self.assertIn(caught.exception.code, (403, 429))
+            if caught.exception.code == 429:
+                self.assertEqual(json.load(caught.exception)["code"], "rate_limited")
+                limited = True
+                break
+        self.assertTrue(limited, "authentication flood was not limited")
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            self.client.open(self.base + "/api/feeds")
+        self.assertEqual(caught.exception.code, 401)
 
 
 if __name__ == "__main__":

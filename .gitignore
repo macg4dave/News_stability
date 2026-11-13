@@ -1,9 +1,13 @@
 .env
 .env.*
 !.env.example
+.local/
+compose.override.yaml
 node_modules/
 dist/
 coverage/
+test-results/
+playwright-report/
 __pycache__/
 *.py[cod]
 .DS_Store

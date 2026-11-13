@@ -3,7 +3,7 @@ import { initializeAppearance } from "./appearance.js";
 import { getRelationBuckets, pageRelations } from "./relations.js";
 
 const el = (id) => document.getElementById(id);
-const state = { session: null, feeds: new Map(), folders: [], feed: null, view: "feed", page: 1, stories: [], story: null, resume: null, expiryTimer: null, epoch: 0, feedRequest: null, storyRequest: null, articleRequest: null };
+const state = { session: null, feeds: new Map(), folders: [], feed: null, view: "feed", page: 1, stories: [], story: null, selected: null, actionPending: false, resume: null, expiryTimer: null, epoch: 0, feedRequest: null, storyRequest: null, articleRequest: null };
 initializeAppearance();
 el("show-appearance").addEventListener("click", () => el("appearance").showModal());
 
@@ -51,7 +51,7 @@ function signedOut(text = "Sign in to your NewsBlur account.", clear = false) {
   cancelReading();
   clearTimeout(state.expiryTimer);
   if (el("shortcuts").open) el("shortcuts").close();
-  state.resume = !clear && (state.feed || state.view === "briefing") ? { username: state.session?.username, view: state.view, feedID: state.feed?.id, page: state.page } : null;
+  state.resume = !clear && (state.feed || state.view !== "feed") ? { username: state.session?.username, view: state.view, feedID: state.feed?.id, page: state.page, filter: state.filter, query: state.query } : null;
   state.session = null;
   el("signin").hidden = false;
   el("reader").hidden = true;
@@ -74,6 +74,11 @@ function signedOut(text = "Sign in to your NewsBlur account.", clear = false) {
   message("page-label", "");
   el("previous").hidden = true;
   el("next").hidden = true;
+  el("story-filters").hidden = true;
+  el("story-query").value = "";
+  el("read-filter").value = "all";
+  state.filter = "all";
+  state.query = "";
   clearArticle();
 }
 
@@ -175,9 +180,14 @@ el("logout").addEventListener("click", async () => {
 el("reconnect").addEventListener("click", connect);
 el("refresh").addEventListener("click", async () => {
   await loadFeeds();
-  if (state.session?.authenticated && state.view === "briefing") await loadReadingPage({ kind: "briefing", page: state.page });
+  if (state.session?.authenticated && (state.feed || state.view !== "feed")) await loadReadingPage({ kind: state.view, feed: state.feed, page: state.page });
 });
 el("daily-briefing").addEventListener("click", () => loadReadingPage({ kind: "briefing", page: 1 }));
+el("saved-stories").addEventListener("click", () => loadReadingPage({ kind: "saved", page: 1 }));
+el("story-filters").addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (state.feed) loadReadingPage({ kind: "feed", feed: state.feed, page: 1, filter: el("read-filter").value, query: el("story-query").value.trim() });
+});
 
 function feedButton(feed) {
   const button = document.createElement("button");
@@ -198,6 +208,7 @@ function feedButton(feed) {
 
 function renderFeeds() {
   const used = new Set();
+  const hadFolders = el("feed-tree").querySelector("details") !== null;
   const openFolders = new Set([...el("feed-tree").querySelectorAll("details[open]")].map((d) => d.dataset.folderPath));
   function tree(folders, parent = "") {
     const list = document.createElement("ul");
@@ -212,7 +223,7 @@ function renderFeeds() {
         const details = document.createElement("details");
         const path = `${parent}/${index}:${folder.title}`;
         details.dataset.folderPath = path;
-        details.open = openFolders.size === 0 || openFolders.has(path);
+        details.open = !hadFolders || openFolders.has(path);
         const summary = document.createElement("summary");
         summary.textContent = folder.title || "Untitled folder";
         details.append(summary, tree(folder.children || [], path));
@@ -232,6 +243,7 @@ function renderFeeds() {
   }
   el("feed-tree").replaceChildren(root);
   el("daily-briefing").setAttribute("aria-current", String(state.view === "briefing"));
+  el("saved-stories").setAttribute("aria-current", String(state.view === "saved"));
 }
 
 async function loadFeeds() {
@@ -252,8 +264,8 @@ async function loadFeeds() {
     const resume = state.resume;
     state.resume = null;
     if (resume?.username === state.session?.username) {
-      if (resume.view === "briefing") await loadReadingPage({ kind: "briefing", page: resume.page });
-      else if (state.feeds.has(resume.feedID)) await loadReadingPage({ kind: "feed", feed: state.feeds.get(resume.feedID), page: resume.page });
+      if (resume.view !== "feed") await loadReadingPage({ kind: resume.view, page: resume.page });
+      else if (state.feeds.has(resume.feedID)) await loadReadingPage({ kind: "feed", feed: state.feeds.get(resume.feedID), page: resume.page, filter: resume.filter, query: resume.query });
     }
     if (state.feed && state.feeds.has(state.feed.id)) {
       state.feed = state.feeds.get(state.feed.id);
@@ -268,6 +280,7 @@ async function loadFeeds() {
       message("page-label", "");
       el("previous").hidden = true;
       el("next").hidden = true;
+      el("story-filters").hidden = true;
       message("story-status", "This feed is no longer in your subscriptions. Choose another feed.");
     }
   } catch (error) {
@@ -283,6 +296,8 @@ async function loadFeeds() {
 function clearArticle() {
   state.articleRequest?.abort();
   state.story = null;
+  state.selected = null;
+  renderActions();
   message("article-title", "A little space for the stories that matter.");
   message("article-feed", "SETTLE IN");
   message("article-meta", "Choose a story to start reading.");
@@ -303,6 +318,8 @@ function selectStory(story) {
   state.articleRequest?.abort();
   el("article-status").hidden = true;
   state.story = story.hash;
+  state.selected = story;
+  renderActions();
   message("article-title", story.title || "Untitled story");
   message("article-feed", story.feed_title || state.feeds.get(story.feed_id)?.title || state.feed?.title || "NewsBlur");
   message("article-meta", storyMeta(story));
@@ -322,6 +339,53 @@ function selectStory(story) {
   for (const button of el("stories").querySelectorAll("button")) button.setAttribute("aria-current", String(button.dataset.hash === story.hash));
   el("article-title").focus();
 }
+
+function renderActions() {
+  const story = state.selected;
+  el("story-actions").hidden = !story || story.kind === "briefing_summary";
+  el("toggle-read").textContent = story?.read ? "Mark unread" : "Mark read";
+  el("toggle-save").textContent = story?.saved ? "Unsave story" : "Save story";
+  el("toggle-read").disabled = state.actionPending;
+  el("toggle-save").disabled = state.actionPending;
+}
+
+async function changeStoryState(field) {
+  const story = state.selected;
+  if (!story || state.actionPending) return;
+  const epoch = state.epoch;
+  const value = !story[field];
+  const action = field === "read" ? (value ? "read" : "unread") : (value ? "save" : "unsave");
+  state.actionPending = true;
+  renderActions();
+  message("article-status", "Saving change to NewsBlur...");
+  el("article-status").hidden = false;
+  try {
+    await api(`/api/stories/${encodeURIComponent(story.hash)}/state`, { method: "POST", body: JSON.stringify({ action }) });
+    if (epoch !== state.epoch) return;
+    // Update only after confirmation. Navigation may have changed during the write.
+    story[field] = value;
+    for (const item of state.stories) if (item.hash === story.hash) item[field] = value;
+    if (state.selected?.hash === story.hash) {
+      state.selected[field] = value;
+      message("article-meta", storyMeta(state.selected));
+      message("article-status", "Change saved to NewsBlur.");
+      el("article-status").hidden = false;
+    }
+    renderStories();
+    if (field === "read") await loadFeeds();
+  } catch (error) {
+    if (epoch === state.epoch) {
+      el("article-status").hidden = false;
+      await readingError(error, "article-status");
+    }
+  } finally {
+    state.actionPending = false;
+    renderActions();
+  }
+}
+
+el("toggle-read").addEventListener("click", () => changeStoryState("read"));
+el("toggle-save").addEventListener("click", () => changeStoryState("saved"));
 
 function renderStories() {
   const list = document.createDocumentFragment();
@@ -401,6 +465,9 @@ async function loadLinkedStory(reference) {
 
 async function loadReadingPage(selection) {
   const { kind, feed, page } = selection;
+  const sameFeed = kind === "feed" && state.view === "feed" && feed?.id === state.feed?.id;
+  const filter = selection.filter ?? (sameFeed ? state.filter || "all" : "all");
+  const query = selection.query ?? (sameFeed ? state.query || "" : "");
   state.storyRequest?.abort();
   const controller = new AbortController();
   state.storyRequest = controller;
@@ -408,16 +475,21 @@ async function loadReadingPage(selection) {
   el("stories").setAttribute("aria-busy", "true");
   el("previous").disabled = true;
   el("next").disabled = true;
-  const title = kind === "briefing" ? "Daily Briefing" : feed.title;
+  const title = kind === "briefing" ? "Daily Briefing" : kind === "saved" ? "Saved stories" : feed.title;
   message("story-status", `Loading ${title}...`);
   try {
-    const path = kind === "briefing" ? `/api/briefing?page=${page}` : `/api/feeds/${feed.id}/stories?page=${page}`;
+    const path = kind === "briefing" ? `/api/briefing?page=${page}` : kind === "saved" ? `/api/saved?page=${page}` : `/api/feeds/${feed.id}/stories?${new URLSearchParams({ page, read_filter: filter, query })}`;
     const result = await api(path, { signal: controller.signal });
     if (epoch !== state.epoch || controller.signal.aborted) return;
-    const changed = state.view !== kind || state.feed?.id !== feed?.id || state.page !== page;
+    const changed = state.view !== kind || state.feed?.id !== feed?.id || state.page !== page || state.filter !== filter || state.query !== query;
     state.feed = feed || null;
     state.view = kind;
     state.page = page;
+    state.filter = filter;
+    state.query = query;
+    el("story-filters").hidden = kind !== "feed";
+    el("read-filter").value = filter;
+    el("story-query").value = query;
     state.stories = result.stories;
     if (changed) clearArticle();
     else if (state.story) {
@@ -433,7 +505,7 @@ async function loadReadingPage(selection) {
       disabled: "Daily Briefing is turned off in NewsBlur. Enable it there to receive summaries.",
       empty: "No briefing is available yet. Check back after NewsBlur creates one.",
     };
-    const ready = result.stories.length ? `${result.stories.length} stories${result.preview ? " · NewsBlur preview" : ""}` : result.can_continue ? "No visible stories on this page. Try the next page." : "No more stories in this feed.";
+    const ready = result.stories.length ? `${result.stories.length} stories${result.preview ? " · NewsBlur preview" : ""}` : result.can_continue ? "No visible stories on this page. Try the next page." : query ? "No stories match this search." : kind === "saved" ? "No saved stories on this page." : "No more stories in this feed.";
     message("story-status", kind === "briefing" && briefingStates[result.state] ? briefingStates[result.state] : ready);
     message("page-label", `Page ${page}`);
     el("previous").hidden = page <= 1;

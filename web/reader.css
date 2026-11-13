@@ -57,6 +57,9 @@ input { min-width:0; width:100%; padding:.7rem; border:1px solid var(--line); ba
 .article { padding:clamp(1.5rem,4vw,4rem); max-width:60rem; overflow-wrap:anywhere; }
 .article h1 { font-size:clamp(1.8rem,3vw,2.8rem); }
 .article-content { font:1.12rem/1.85 Georgia,serif; margin-top:2rem; }
+.story-actions { display:flex; gap:.7rem; flex-wrap:wrap; margin-bottom:1rem; }
+.story-filters { display:grid; gap:.4rem; padding:1rem 1.2rem; border-bottom:1px solid var(--line); font-size:.85rem; }
+.story-filters p { margin:0; }
 .article-content h1,.article-content h2,.article-content h3 { font-family:system-ui,sans-serif; line-height:1.4; margin-top:1.5em; }
 .article-content blockquote { border-left:3px solid var(--line); margin-left:0; padding-left:1.3rem; color:var(--muted); }
 .article-content pre { overflow:auto; padding:1rem; background:var(--wash); font-size:.85rem; }

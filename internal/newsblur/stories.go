@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 )
 
 // Story contains source data for the reader adapter. Content is deliberately
@@ -43,13 +42,32 @@ type StoryPage struct {
 	Hidden  int
 }
 
-// Stories loads a single feed without changing read state. Hidden stories can
-// occupy an empty page; callers must not infer the end solely from an empty list.
-func (c *Client) Stories(ctx context.Context, feedID, page int) (StoryPage, error) {
+// Stories delegates feed reading, unread filtering and search to NewsBlur without
+// changing read state. Hidden stories may occupy an otherwise empty page.
+func (c *Client) Stories(ctx context.Context, feedID, page int, filter, query string) (StoryPage, error) {
 	if feedID < 1 || page < 1 || page > 10000 {
 		return StoryPage{}, ErrInvalidResponse
 	}
-	body, err := c.request(ctx, http.MethodGet, "/reader/feed/"+strconv.Itoa(feedID)+"?page="+strconv.Itoa(page)+"&order=newest&read_filter=all", nil)
+	if (filter != "all" && filter != "unread") || len(query) > 256 {
+		return StoryPage{}, ErrInvalidResponse
+	}
+	values := url.Values{"page": {strconv.Itoa(page)}, "order": {"newest"}, "read_filter": {filter}}
+	if query != "" {
+		values.Set("query", query)
+	}
+	body, err := c.request(ctx, http.MethodGet, "/reader/feed/"+strconv.Itoa(feedID)+"?"+values.Encode(), nil)
+	if err != nil {
+		return StoryPage{}, sessionError(err)
+	}
+	return decodeStoryPage(body, page)
+}
+
+// SavedStories reads the user's existing saved stories, without changing tags.
+func (c *Client) SavedStories(ctx context.Context, page int) (StoryPage, error) {
+	if page < 1 || page > 10000 {
+		return StoryPage{}, ErrInvalidResponse
+	}
+	body, err := c.request(ctx, http.MethodGet, "/reader/starred_stories?page="+strconv.Itoa(page), nil)
 	if err != nil {
 		return StoryPage{}, sessionError(err)
 	}
@@ -59,7 +77,7 @@ func (c *Client) Stories(ctx context.Context, feedID, page int) (StoryPage, erro
 // StoryByHash follows a NewsBlur-supplied reference through its documented
 // river endpoint. The browser cannot choose an upstream URL or arbitrary path.
 func (c *Client) StoryByHash(ctx context.Context, hash string) (Story, error) {
-	if len(hash) > 256 || strings.IndexByte(hash, ':') < 1 || strings.ContainsAny(hash, "/\\\r\n") {
+	if !ValidStoryHash(hash) {
 		return Story{}, ErrStoryNotFound
 	}
 	body, err := c.request(ctx, http.MethodGet, "/reader/river_stories?h="+url.QueryEscape(hash), nil)

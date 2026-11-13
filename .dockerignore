@@ -4,9 +4,14 @@
 node_modules
 __pycache__
 coverage
+test-results
+playwright-report
 bin
 *.test
 *.out
 *.prof
 *.trace
 __debug_bin*
+
+.local
+compose.override.yaml
