@@ -73,3 +73,13 @@ func TestReadingTimeForDisplayedText(t *testing.T) {
 		}
 	}
 }
+
+func TestFigureCaptionPreservedWithoutActiveAttributes(t *testing.T) {
+	output := New().HTML(`<figure onclick="bad()"><img src="https://images.invalid/photo.jpg"><figcaption style="display:none" onmouseover="bad()">A view. Credit: Synthetic photographer.</figcaption></figure>`)
+	if !strings.Contains(output, "<figure>") || !strings.Contains(output, "<figcaption>A view. Credit: Synthetic photographer.</figcaption>") || !strings.Contains(output, `data-picture-src="https://images.invalid/photo.jpg"`) {
+		t.Fatalf("figure or source caption lost: %s", output)
+	}
+	if strings.Contains(output, "onclick") || strings.Contains(output, "onmouseover") || strings.Contains(output, "style=") {
+		t.Fatal("active caption attributes retained")
+	}
+}

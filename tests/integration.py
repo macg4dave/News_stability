@@ -46,7 +46,7 @@ class ReaderTests(unittest.TestCase):
         self.assertEqual(json.load(caught.exception)["code"], "csrf_rejected")
 
     def test_unauthenticated_reads_and_removed_passthrough(self):
-        for path, status in (("/api/feeds", 401), ("/api/feeds/1/stories", 401), ("/api/saved", 401), ("/newsblur/api/login", 404)):
+        for path, status in (("/api/feeds", 401), ("/api/feeds/1/stories", 401), ("/api/saved", 404), ("/newsblur/api/login", 404)):
             with self.assertRaises(urllib.error.HTTPError) as caught:
                 self.client.open(self.base + path)
             self.assertEqual(caught.exception.code, status)

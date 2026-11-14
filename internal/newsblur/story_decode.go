@@ -2,6 +2,7 @@ package newsblur
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -19,7 +20,9 @@ type wireStory struct {
 	SecureImages map[string]string `json:"secure_image_urls"`
 	Thumbnails   map[string]string `json:"secure_image_thumbnails"`
 	Read         int               `json:"read_status"`
-	Saved        bool              `json:"starred"`
+	Tags         []string          `json:"story_tags"`
+	Score        *int              `json:"score"`
+	Intelligence map[string]int    `json:"intelligence"`
 	FeedID       int               `json:"story_feed_id"`
 	FeedTitle    string            `json:"feed_title"`
 	Cluster      []struct {
@@ -61,7 +64,7 @@ func (s wireStory) story() (Story, error) {
 	if seconds, err := s.Timestamp.Float64(); err == nil && seconds > 0 && seconds < 253402300800 {
 		publishedAt = time.Unix(int64(seconds), 0).UTC().Format(time.RFC3339)
 	}
-	return Story{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, PublishedAt: publishedAt, URL: s.URL, Content: s.Content, Pictures: pictures, PictureSources: s.SecureImages, Thumbnails: s.Thumbnails, Read: s.Read == 1, Saved: s.Saved, FeedID: s.FeedID, FeedTitle: s.FeedTitle, Related: related}, nil
+	return Story{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, PublishedAt: publishedAt, URL: s.URL, Content: s.Content, Pictures: pictures, PictureSources: s.SecureImages, Thumbnails: s.Thumbnails, Read: s.Read == 1, Tags: s.Tags, Score: s.score(), Scored: s.Score != nil || s.Intelligence != nil, FeedID: s.FeedID, FeedTitle: s.FeedTitle, Related: related}, nil
 }
 
 func decodeStoryPage(body []byte, page int) (StoryPage, error) {
@@ -69,6 +72,8 @@ func decodeStoryPage(body []byte, page int) (StoryPage, error) {
 		Authenticated *bool       `json:"authenticated"`
 		Code          *int        `json:"code"`
 		Hidden        int         `json:"hidden_stories_count"`
+		Removed       int         `json:"hidden_stories_removed"`
+		Message       string      `json:"message"`
 		Stories       []wireStory `json:"stories"`
 	}
 	if json.Unmarshal(body, &result) != nil {
@@ -80,10 +85,13 @@ func decodeStoryPage(body []byte, page int) (StoryPage, error) {
 	if result.Code != nil && *result.Code < 0 {
 		return StoryPage{}, ErrRejected
 	}
-	if result.Stories == nil || result.Hidden < 0 {
+	if result.Stories == nil || result.Hidden < 0 || result.Removed < 0 {
 		return StoryPage{}, ErrInvalidResponse
 	}
-	output := StoryPage{Stories: make([]Story, 0, len(result.Stories)), Page: page, Hidden: result.Hidden}
+	if result.Removed > result.Hidden {
+		result.Hidden = result.Removed
+	}
+	output := StoryPage{Limited: strings.Contains(strings.ToLower(result.Message), "premium"), Stories: make([]Story, 0, len(result.Stories)), Page: page, Hidden: result.Hidden}
 	for _, value := range result.Stories {
 		s, err := value.story()
 		if err != nil {
@@ -92,4 +100,34 @@ func decodeStoryPage(body []byte, page int) (StoryPage, error) {
 		output.Stories = append(output.Stories, s)
 	}
 	return output, nil
+}
+
+// Prefer the server's score. Older NewsBlur versions expose classifier values;
+// their precedence is hide, positive, negative, then the feed's baseline.
+func (s wireStory) score() int {
+	if s.Score != nil {
+		return *s.Score
+	}
+	high, low := 0, 0
+	for key, value := range s.Intelligence {
+		if key == "feed" {
+			continue
+		}
+		if value > high {
+			high = value
+		}
+		if value < low {
+			low = value
+		}
+	}
+	if low <= -2 {
+		return low
+	}
+	if high > 0 {
+		return high
+	}
+	if low < 0 {
+		return low
+	}
+	return s.Intelligence["feed"]
 }

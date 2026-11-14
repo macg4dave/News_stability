@@ -22,7 +22,9 @@ type Story struct {
 	PictureSources map[string]string `json:"-"`
 	Thumbnails     map[string]string `json:"-"`
 	Read           bool              `json:"read"`
-	Saved          bool              `json:"starred"`
+	Tags           []string          `json:"-"`
+	Score          int               `json:"-"`
+	Scored         bool              `json:"-"`
 	FeedID         int               `json:"-"`
 	FeedTitle      string            `json:"-"`
 	Related        []RelatedStory    `json:"-"`
@@ -44,38 +46,56 @@ type StoryPage struct {
 	Stories []Story
 	Page    int
 	Hidden  int
+	Limited bool
 }
 
-// Stories delegates feed reading, unread filtering and search to NewsBlur without
-// changing read state. Hidden stories may occupy an otherwise empty page.
-func (c *Client) Stories(ctx context.Context, feedID, page int, filter, query string) (StoryPage, error) {
-	if feedID < 1 || page < 1 || page > 10000 {
+// Stories reads a feed in NewsBlur order. Focus selects positive upstream scores.
+func (c *Client) Stories(ctx context.Context, feedID, page int, filter string) (StoryPage, error) {
+	if feedID < 1 || page < 1 || page > 10000 || !ValidReadFilter(filter) {
 		return StoryPage{}, ErrInvalidResponse
 	}
-	if (filter != "all" && filter != "unread") || len(query) > 256 {
-		return StoryPage{}, ErrInvalidResponse
-	}
-	values := url.Values{"page": {strconv.Itoa(page)}, "order": {"newest"}, "read_filter": {filter}}
-	if query != "" {
-		values.Set("query", query)
-	}
+	values := readingValues(page, filter)
 	body, err := c.request(ctx, http.MethodGet, "/reader/feed/"+strconv.Itoa(feedID)+"?"+values.Encode(), nil)
 	if err != nil {
 		return StoryPage{}, sessionError(err)
 	}
-	return decodeStoryPage(body, page)
+	return focusedPage(body, page, filter)
 }
 
-// SavedStories reads the user's existing saved stories, without changing tags.
-func (c *Client) SavedStories(ctx context.Context, page int) (StoryPage, error) {
-	if page < 1 || page > 10000 {
-		return StoryPage{}, ErrInvalidResponse
+// ValidReadFilter reports the three supported reading modes.
+func ValidReadFilter(filter string) bool {
+	return filter == "all" || filter == "unread" || filter == "focus"
+}
+
+func readingValues(page int, filter string) url.Values {
+	read := filter
+	if filter == "focus" {
+		read = "unread"
 	}
-	body, err := c.request(ctx, http.MethodGet, "/reader/starred_stories?page="+strconv.Itoa(page), nil)
-	if err != nil {
-		return StoryPage{}, sessionError(err)
+	return url.Values{"page": {strconv.Itoa(page)}, "order": {"newest"}, "read_filter": {read}}
+}
+
+// ErrFocusUnavailable means this server returned no usable intelligence scores.
+var ErrFocusUnavailable = errors.New("NewsBlur intelligence unavailable")
+
+func focusedPage(body []byte, page int, filter string) (StoryPage, error) {
+	result, err := decodeStoryPage(body, page)
+	if err != nil || filter != "focus" {
+		return result, err
 	}
-	return decodeStoryPage(body, page)
+	visible := make([]Story, 0, len(result.Stories))
+	for _, story := range result.Stories {
+		if !story.Scored {
+			return StoryPage{}, ErrFocusUnavailable
+		}
+		if story.Score > 0 {
+			visible = append(visible, story)
+		} else {
+			result.Hidden++
+		}
+	}
+	result.Stories = visible
+	return result, nil
 }
 
 // StoryByHash follows a NewsBlur-supplied reference through its documented

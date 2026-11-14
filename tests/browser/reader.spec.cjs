@@ -2,6 +2,12 @@ const { test, expect } = require("@playwright/test");
 
 const { fixture, story } = require("./fixture.cjs");
 
+async function expireSession(page, model) {
+  model.expired = true;
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect(page.locator("#reader")).toBeHidden();
+}
+
 async function openStory(page) {
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await page.getByRole("button", { name: "Synthetic story", exact: false }).first().click();
@@ -9,7 +15,7 @@ async function openStory(page) {
   await expect(page.locator("#article-content")).toBeVisible();
 }
 
-test("scrolling through an article marks it read and logout clears content", async ({ page }) => {
+test("scrolling through an article marks it read and session expiry clears content", async ({ page }) => {
   const model = await fixture(page);
   model.fullTexts["1:abc"] = "<p>A long synthetic article for scrolling.</p>".repeat(60);
   await openStory(page);
@@ -20,7 +26,7 @@ test("scrolling through an article marks it read and logout clears content", asy
   await expect(page.locator('#stories .story').first()).toHaveClass(/read/);
   expect(model.actions).toEqual(["read"]);
   await page.getByRole("button", { name: "Back to stories", exact: true }).click();
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await expireSession(page, model);
   await expect(page.locator("#reader")).toBeHidden();
   await expect(page.locator("#article-content")).toBeEmpty();
   await expect(page.getByLabel("Password", { exact: true })).toHaveValue("");
@@ -51,17 +57,15 @@ test("failed automatic read keeps unread state and pauses until refresh", async 
   expect(model.actions).toEqual(["read", "read"]);
 });
 
-test("search and unread filters use NewsBlur and persist across pagination", async ({ page }) => {
+test("unread filters use NewsBlur and persist across pagination without search", async ({ page }) => {
   const model = await fixture(page);
   await openStory(page);
   await page.getByRole("button", { name: "Back to stories", exact: true }).click();
-  await page.getByLabel("Show", { exact: true }).selectOption("unread");
-  await page.getByLabel("Search this feed").fill("cats & dogs");
   model.hasMore = true;
-  await page.getByLabel("Search this feed").press("Enter");
+  await page.getByLabel("Show", { exact: true }).selectOption("unread");
   await expect(page.locator("#article-content")).toBeEmpty();
   await expect.poll(() => model.reads.at(-1).get("page")).toBe("2");
-  expect(model.reads.at(-1).get("query")).toBe("cats & dogs");
+  expect(model.reads.at(-1).has("query")).toBe(false);
   expect(model.reads.at(-1).get("read_filter")).toBe("unread");
 });
 
@@ -88,16 +92,29 @@ test("keyboard navigation pauses in inputs and appearance survives reload", asyn
   await page.keyboard.press("j");
   await expect(page.locator("#article-title")).toHaveText("Second synthetic story");
   await page.getByRole("button", { name: "Back to stories", exact: true }).click();
-  await page.getByLabel("Search this feed").focus();
+  await page.getByLabel("Show", { exact: true }).focus();
   await page.keyboard.press("k");
   await expect(page.locator("#article-title")).toHaveText("Second synthetic story");
   await page.getByRole("button", { name: "Appearance", exact: true }).click();
-  await page.getByLabel("Background", { exact: true }).selectOption("paper");
+  await page.getByLabel("Article text size", { exact: true }).selectOption("large");
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "paper");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "paper");
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual(["news-stability-appearance-v1"]);
+});
+
+test("Warm paper overrides legacy themes and system dark mode while retaining type preferences", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.addInitScript(() => localStorage.setItem("news-stability-appearance-v1", JSON.stringify({ theme: "dark", font: "sans", size: "large" })));
+  await fixture(page);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "paper");
+  expect(await page.locator("html").evaluate(node => ({ background: getComputedStyle(node).backgroundColor, scheme: getComputedStyle(node).colorScheme }))).toEqual({ background: "rgb(245, 237, 228)", scheme: "light" });
+  await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await expect(page.getByLabel("Background", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Article font", { exact: true })).toHaveValue("sans");
+  await expect(page.getByLabel("Article text size", { exact: true })).toHaveValue("large");
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("news-stability-appearance-v1")))).toEqual({ font: "sans", size: "large" });
 });
 
 test("upstream expiry clears account content and shows sign-in", async ({ page }) => {
@@ -110,11 +127,8 @@ test("upstream expiry clears account content and shows sign-in", async ({ page }
   await expect(page.locator("#login-status")).toContainText("expired");
 });
 
-test("saved view and unsupported briefing are explicit", async ({ page }) => {
+test("unsupported briefing is explicit", async ({ page }) => {
   await fixture(page);
-  await page.getByRole("button", { name: "Saved stories", exact: true }).click();
-  await expect(page.locator("#stories")).toContainText("Previously saved story");
-  await expect(page.locator("#story-filters")).toBeHidden();
   await page.getByRole("button", { name: "Daily Briefing", exact: true }).click();
   await expect(page.locator("#story-status")).toContainText("not available");
 });
@@ -135,10 +149,9 @@ test("refresh reloads authoritative story state and preserves collapsed folders"
   await openStory(page);
   await page.locator("#feed-tree summary").click();
   model.stories[0].read = true;
-  model.stories[0].saved = true;
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await expect(page.locator("#article-meta")).toContainText("Read");
-  await expect(page.locator("#article-meta")).toContainText("Saved");
+  await expect(page.locator("#article-meta")).not.toContainText("Saved");
   await expect(page.locator("#feed-tree details")).not.toHaveAttribute("open", "");
 });
 
@@ -156,8 +169,6 @@ test("layouts preserve stories, selection, filters and request state", async ({ 
   await openStory(page);
   await page.getByRole("button", { name: "Back to stories", exact: true }).click();
   await page.getByLabel("Show", { exact: true }).selectOption("unread");
-  await page.getByLabel("Search this feed").fill("cats");
-  await page.getByLabel("Search this feed").press("Enter");
   await expect(page.locator("#article-content")).toBeEmpty();
   await page.locator("#stories .story").first().click();
   await page.getByRole("button", { name: "Back to stories", exact: true }).click();
@@ -169,7 +180,6 @@ test("layouts preserve stories, selection, filters and request state", async ({ 
     await expect(page.locator("#reader")).toHaveAttribute("data-layout", layout);
     await expect(page.locator("#article-title")).toHaveText("Synthetic story");
     await expect(page.locator('#stories .story[aria-current="true"]')).toHaveCount(1);
-    await expect(page.getByLabel("Search this feed")).toHaveValue("cats");
     await expect(page.getByLabel("Show", { exact: true })).toHaveValue("unread");
     expect(await page.locator("#stories .story").evaluateAll(nodes => nodes.map(node => node.dataset.hash))).toEqual(original);
     expect(await page.locator("#stories .story").first().evaluate(node => node === window.originalStoryNode)).toBe(true);
@@ -182,8 +192,8 @@ test("layouts preserve stories, selection, filters and request state", async ({ 
   await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
   await page.reload();
   await expect(page.getByLabel("Story layout", { exact: true })).toHaveValue("magazine");
-  await page.getByRole("button", { name: "Saved stories", exact: true }).click();
-  await expect(page.locator("#stories")).toContainText("Previously saved story");
+  await page.getByRole("button", { name: "All feeds", exact: true }).click();
+  await expect(page.locator("#stories")).toContainText("Synthetic story");
   await expect(page.locator("#reader")).toHaveAttribute("data-layout", "magazine");
 });
 
@@ -357,12 +367,11 @@ test("failed and unsafe pictures retain readable stories without credentialed re
 test("opening a story loads full text and preserves explicit story state", async ({ page }) => {
   const model = await fixture(page);
   model.fullTexts["1:abc"] = "<p>Complete article beyond the short feed preview.</p>";
-  model.stories[0].saved = true;
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await page.locator("#stories .story").first().click();
   await expect(page.locator("#article-content")).toContainText("Complete article beyond");
   await expect(page.locator("#full-text-status")).toHaveText("Full text from NewsBlur.");
-  await expect(page.locator("#article-meta")).toContainText("Saved");
+  await expect(page.locator("#article-meta")).not.toContainText("Saved");
   await page.getByRole("button", { name: "Back to stories", exact: true }).click();
   await page.locator("#stories .story").first().click();
   await expect(page.locator("#article-content")).toContainText("Complete article beyond");
@@ -470,7 +479,7 @@ for (const width of [1440, 1024]) {
     await row.locator(".story").click();
     await expect(row.locator(".story")).toHaveAttribute("aria-expanded", "false");
     await next.locator(".story").click();
-    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await expireSession(page, model);
     await expect(page.locator("#article-content")).toBeEmpty();
     await expect(page.locator("#reader")).toBeHidden();
     expect(model.actions).toEqual([]);
@@ -549,14 +558,14 @@ test("a canceled continuation cannot append stories to a different view", async 
   });
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect.poll(() => started).toBe(true);
-  await page.getByRole("button", { name: "Saved stories", exact: true }).click();
+  await page.getByRole("button", { name: "All feeds", exact: true }).click();
   release();
-  await expect(page.locator("#stories")).toContainText("Previously saved story");
-  await expect(page.locator("#stories > li")).toHaveCount(1);
+  await expect(page.locator("#stories")).toContainText("Synthetic story");
+  await expect(page.locator("#stories > li")).toHaveCount(2);
   await expect(page.locator("#stories")).not.toContainText("Stale continuation");
 });
 
-for (const scope of ["saved", "briefing"]) {
+for (const scope of ["briefing"]) {
   test(`${scope} stories load continuously using their own endpoint`, async ({ page }) => {
     const model = await fixture(page);
     const pages = [];
@@ -565,7 +574,7 @@ for (const scope of ["saved", "briefing"]) {
       pages.push(number);
       return route.fulfill({ contentType: "application/json", body: JSON.stringify({ stories: [story(`1:${scope}${number}`, `${scope} story ${number}`)], page: number, state: "ready", can_continue: number === 1 }) });
     });
-    await page.getByRole("button", { name: scope === "saved" ? "Saved stories" : "Daily Briefing", exact: true }).click();
+    await page.getByRole("button", { name: "Daily Briefing", exact: true }).click();
     await expect(page.locator("#stories > li")).toHaveCount(2);
     await expect(page.locator("#stream-status")).toHaveText("No more stories.");
     expect(pages).toEqual([1, 2]);
@@ -613,7 +622,7 @@ test.describe("publication dates", () => {
   });
 });
 
-test("refresh status records success, survives errors, and clears on logout", async ({ page }) => {
+test("refresh status records success, survives errors, and clears on session expiry", async ({ page }) => {
   const model = await fixture(page);
   await expect(page.locator("#collection-updated")).toBeHidden();
   await page.getByRole("button", { name: "Synthetic feed" }).click();
@@ -623,42 +632,41 @@ test("refresh status records success, survives errors, and clears on logout", as
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
   await expect(page.locator("#story-status")).toHaveClass(/error/);
   await expect(page.locator("#collection-updated time")).toHaveAttribute("datetime", successful);
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expireSession(page, model);
   await expect(page.locator("#collection-updated")).toBeEmpty();
 });
 
-for (const theme of ["light", "dark", "paper"]) {
-  test(`${theme} theme has readable text and usable control targets`, async ({ page }) => {
-    await fixture(page);
-    await page.getByRole("button", { name: "Appearance", exact: true }).click();
-    await page.getByLabel("Background", { exact: true }).selectOption(theme);
-    await page.getByRole("button", { name: "Done", exact: true }).click();
-    await page.getByRole("button", { name: "Synthetic feed" }).click();
-    await expect(page.locator("#story-status")).toHaveText("2 stories");
-    const ratios = await page.evaluate(() => {
-      const style = getComputedStyle(document.documentElement);
-      const luminance = color => {
-        const channels = color.match(/\d+/g).map(Number).slice(0, 3).map(n => n / 255).map(n => n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4);
-        return channels.reduce((sum, n, i) => sum + n * [.2126, .7152, .0722][i], 0);
-      };
-      const color = token => {
-        const probe = document.createElement("span");
-        probe.style.color = style.getPropertyValue(token);
-        document.body.append(probe);
-        const result = luminance(getComputedStyle(probe).color);
-        probe.remove();
-        return result;
-      };
-      return ["--ink", "--muted", "--accent"].flatMap(foreground => ["--paper", "--panel", "--wash"].map(background => {
-        const a = color(foreground), b = color(background);
-        return { foreground, background, ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05) };
-      }));
-    });
-    for (const { foreground, background, ratio } of ratios) expect(ratio, `${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
-    const controls = await page.locator("button:visible, select:visible, summary:visible").evaluateAll(nodes => nodes.map(node => ({ name: node.textContent.trim(), height: node.getBoundingClientRect().height })));
-    for (const control of controls) expect(control.height, control.name).toBeGreaterThanOrEqual(44);
+test("Warm paper has readable text and usable control targets", async ({ page }) => {
+  await fixture(page);
+  await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await expect(page.getByLabel("Background", { exact: true })).toHaveCount(0);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "paper");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await expect(page.locator("#story-status")).toHaveText("2 stories");
+  const ratios = await page.evaluate(() => {
+    const style = getComputedStyle(document.documentElement);
+    const luminance = color => {
+      const channels = color.match(/\d+/g).map(Number).slice(0, 3).map(n => n / 255).map(n => n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4);
+      return channels.reduce((sum, n, i) => sum + n * [.2126, .7152, .0722][i], 0);
+    };
+    const color = token => {
+      const probe = document.createElement("span");
+      probe.style.color = style.getPropertyValue(token);
+      document.body.append(probe);
+      const result = luminance(getComputedStyle(probe).color);
+      probe.remove();
+      return result;
+    };
+    return ["--ink", "--muted", "--accent"].flatMap(foreground => ["--paper", "--panel", "--wash"].map(background => {
+      const a = color(foreground), b = color(background);
+      return { foreground, background, ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05) };
+    }));
   });
-}
+  for (const { foreground, background, ratio } of ratios) expect(ratio, `${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
+  const controls = await page.locator("button:visible, select:visible, summary:visible").evaluateAll(nodes => nodes.map(node => ({ name: node.textContent.trim(), height: node.getBoundingClientRect().height })));
+  for (const control of controls) expect(control.height, control.name).toBeGreaterThanOrEqual(44);
+});
 
 test("large text and reduced motion retain reading and dialog controls on desktop", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 900 });
@@ -726,7 +734,7 @@ test("automatic read pauses offline and in hidden tabs, and skips briefing summa
   expect(model.actionRequests.some(item => item.hash === "1:pause0")).toBe(false);
 });
 
-test("scroll read serializes writes and rejects a late confirmation after logout", async ({ page }) => {
+test("scroll read serializes writes and rejects a late confirmation after session expiry", async ({ page }) => {
   const model = await fixture(page);
   model.stories = Array.from({ length: 30 }, (_, i) => story(`1:queue${i}`, `Queue story ${i}`));
   let release;
@@ -743,7 +751,7 @@ test("scroll read serializes writes and rejects a late confirmation after logout
   await page.mouse.wheel(0, 1200);
   await expect.poll(() => calls).toBe(1);
   await expect(page.locator("#stories .story").first()).not.toHaveClass(/read/);
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expireSession(page, model);
   release();
   await expect(page.locator("#stories")).toBeEmpty();
   await expect(page.locator("#reader")).toBeHidden();
@@ -810,21 +818,25 @@ test("a downward scroll gesture marks a fully visible short article read", async
 });
 
 for (const layout of ["cards", "magazine", "list"]) {
-  test(`${layout}: unread dot becomes hollow only after confirmed read`, async ({ page }) => {
+  test(`${layout}: vertical blue unread marker clears only after confirmed read`, async ({ page }) => {
     const model = await fixture(page);
     model.stories[1].read = true;
     model.fullTexts["1:abc"] = "<p>A long synthetic article.</p>".repeat(60);
     await page.getByLabel("Story layout", { exact: true }).selectOption(layout);
     await page.getByRole("button", { name: "Synthetic feed" }).click();
-    const dot = page.locator("#stories .story").first().locator(".read-dot");
-    await expect(dot).toHaveAttribute("title", "Unread");
-    expect(await dot.evaluate(node => getComputedStyle(node).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
-    expect(await page.locator("#stories .story").nth(1).locator(".read-dot").evaluate(node => getComputedStyle(node).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+    const indicator = page.locator("#stories .story").first().locator(".read-indicator");
+    await expect(indicator).toHaveAttribute("title", "Unread");
+    const markerBox = await indicator.boundingBox();
+    expect(markerBox.height).toBeGreaterThan(markerBox.width * 3);
+    expect(await indicator.evaluate(node => getComputedStyle(node).borderRadius)).toBe("999px");
+    expect(await indicator.evaluate(node => getComputedStyle(node).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+    expect(await page.locator("#stories .story").nth(1).locator(".read-indicator").evaluate(node => getComputedStyle(node).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
     await page.locator("#stories .story").first().click();
     await expect(page.locator("#full-text-status")).toHaveText("Full text from NewsBlur.");
     await page.mouse.wheel(0, 20000);
-    await expect(dot).toHaveAttribute("title", "Read");
-    expect(await dot.evaluate(node => getComputedStyle(node).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+    await expect(indicator).toHaveAttribute("title", "Read");
+    expect(await indicator.evaluate(node => getComputedStyle(node).boxShadow)).toBe("none");
+    expect(await indicator.evaluate(node => getComputedStyle(node).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
   });
 }
 
@@ -857,7 +869,7 @@ test("failed NewsBlur image falls back to a validated original without looping",
   model.stories[0].pictures = [relayPicture(signedImagePath), original, "https://publisher.invalid/unused.png"];
   const requests = [];
   await page.route("**/api/newsblur-picture?**", route => { requests.push("newsblur"); return route.fulfill({ status: 404, body: "Unavailable" }); });
-  await page.route("https://publisher.invalid/**", route => { requests.push(route.request().url()); return route.fulfill({ contentType: "image/png", body: pixelPNG }); });
+  await page.route("https://publisher.invalid/**", route => { requests.push(route.request().url()); return route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400"/>' }); });
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   const image = page.locator("#stories .story-picture img");
   await expect.poll(() => image.evaluate(node => node.complete && node.naturalWidth > 0)).toBe(true);
@@ -888,78 +900,195 @@ test("hidden pictures suppress NewsBlur relay requests too", async ({ page }) =>
   expect(requests).toBe(0);
 });
 
-test("filter changes submit the visible draft and clear search resets only the query", async ({ page }) => {
+test("All feeds, nested folder reading and Focus use collection scopes without search or saves", async ({ page }) => {
   const model = await fixture(page);
-  await page.getByRole("button", { name: "Synthetic feed" }).click();
-  const query = page.getByLabel("Search this feed");
-  await query.fill("cats & dogs");
-  expect(model.reads).toHaveLength(1);
-  await page.getByLabel("Show", { exact: true }).selectOption("unread");
-  await expect.poll(() => model.reads.at(-1).get("query")).toBe("cats & dogs");
-  expect(model.reads.at(-1).get("read_filter")).toBe("unread");
-  await expect(page.locator("#stories")).toHaveAttribute("aria-busy", "false");
-  await page.getByRole("button", { name: "Clear search", exact: true }).click();
-  await expect.poll(() => model.reads.at(-1).get("query")).toBe("");
-  expect(model.reads.at(-1).get("read_filter")).toBe("unread");
-  await expect(query).toBeFocused();
-  await expect(query).toHaveValue("");
-  await expect(page.getByRole("button", { name: "Clear search", exact: true })).toBeHidden();
-});
-
-test("a pending search preserves newer typing and a later filter cancels stale results", async ({ page }) => {
-  await fixture(page);
-  await page.getByRole("button", { name: "Synthetic feed" }).click();
-  let release;
-  const held = new Promise(resolve => { release = resolve; });
-  let started;
-  const requested = new Promise(resolve => { started = resolve; });
-  await page.route("**/api/feeds/1/stories?**", async route => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.get("query") !== "first") return route.fallback();
-    started();
-    await held;
-    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ stories: [story("1:stale", "Stale result")], page: 1, can_continue: false }) });
-  });
-  const query = page.getByLabel("Search this feed");
-  await query.fill("first");
-  await query.press("Enter");
-  await requested;
-  await query.fill("new draft");
-  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
-  await page.getByLabel("Show", { exact: true }).selectOption("unread");
-  await expect(page.locator("#stories")).toHaveAttribute("aria-busy", "false");
-  release();
-  await expect(query).toHaveValue("new draft");
-  await expect(page.getByLabel("Show", { exact: true })).toHaveValue("unread");
-  await expect(page.locator("#stories")).not.toContainText("Stale result");
-  await expect(page.getByLabel("Story layout", { exact: true })).toHaveValue("list");
-});
-
-test("search failures retain the query for retry and successful responses preserve newer drafts", async ({ page }) => {
-  const model = await fixture(page);
-  await page.getByRole("button", { name: "Synthetic feed" }).click();
-  model.failRead = true;
-  const query = page.getByLabel("Search this feed");
-  await query.fill("retry me");
-  await query.press("Enter");
-  await expect(page.locator("#story-status")).toHaveClass(/error/);
-  await expect(query).toHaveValue("retry me");
+  model.stories[0].score = 1;
+  await page.route("**/api/feeds", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ feeds: [{ id: 1, title: "Synthetic feed", positive: 1, neutral: 2 }], folders: [{ title: "Reading", children: [{ feed_id: 1 }, { title: "Science", children: [{ feed_id: 1 }] }] }] }) }));
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await page.locator("#feed-tree summary").filter({ hasText: /^Science$/ }).click();
+  await expect(page.getByRole("button", { name: "Read Science", exact: true })).toBeVisible();
+  await expect(page.getByRole("searchbox")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Saved stories", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "All feeds", exact: true }).click();
+  await expect(page.locator("#stories-heading")).toHaveText("All feeds");
   await expect(page.locator("#stories .story")).toHaveCount(2);
-  model.failRead = false;
+  expect(model.reads.at(-1).has("query")).toBe(false);
+  await page.getByRole("button", { name: "Read Reading", exact: true }).click();
+  await expect(page.locator("#stories-heading")).toHaveText("Reading");
+  expect(model.reads.at(-1).get("folder")).toBe("0");
+  expect(model.reads.at(-1).get("folder_title")).toBe("Reading");
+  await page.getByRole("button", { name: "Read Science", exact: true }).click();
+  await expect(page.locator("#stories-heading")).toHaveText("Science");
+  expect(model.reads.at(-1).get("folder")).toBe("0/1");
+  await page.getByLabel("Show", { exact: true }).selectOption("focus");
+  await expect(page.locator("#stories .story")).toHaveCount(1);
+  expect(model.reads.at(-1).get("folder")).toBe("0/1");
+  await page.getByRole("button", { name: /^Focus / }).click();
+  await expect(page.locator("#stories-heading")).toHaveText("Focus");
+  expect(model.reads.at(-1).has("folder")).toBe(false);
+  expect(model.reads.at(-1).get("read_filter")).toBe("focus");
+});
+
+test("river account and page limits explain why the collection ends", async ({ page }) => {
+  await fixture(page);
+  await page.route("**/api/river?**", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ stories: [story()], page: 1, can_continue: false, limited: true, limit_reached: true }) }));
+  await page.getByRole("button", { name: "All feeds", exact: true }).click();
+  await expect(page.locator("#story-status")).toContainText("NewsBlur limits this collection for your account.");
+  await expect(page.locator("#stream-status")).toContainText("page limit reached");
+});
+
+test("thumbs train the selected story field only after NewsBlur confirms", async ({ page }) => {
+  const model = await fixture(page);
+  model.stories[0].author = "A writer";
+  model.stories[0].tags = ["Science"];
+  await openStory(page);
+  await expect(page.getByLabel("Train NewsBlur on")).toContainText("Topic: Science");
+  const like = page.getByRole("button", { name: "Like selected choice", exact: true });
+  const dislike = page.getByRole("button", { name: "Dislike selected choice", exact: true });
+  await like.click();
+  await expect(like).toHaveAttribute("aria-pressed", "true");
+  expect(model.feedback).toEqual([{ hash: "1:abc", action: "like", target: "title", value: "Synthetic story" }]);
+  await page.getByLabel("Train NewsBlur on").selectOption({ label: "Topic: Science" });
+  await expect(like).toHaveAttribute("aria-pressed", "false");
+  model.failFeedback = true;
+  await dislike.click();
+  await expect(page.locator("#feedback-status")).toContainText("not confirmed");
+  await expect(dislike).toHaveAttribute("aria-pressed", "false");
+  model.failFeedback = false;
+  await dislike.click();
+  await expect(dislike).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Clear training", exact: true }).click();
+  await expect(dislike).toHaveAttribute("aria-pressed", "false");
+  expect(model.feedback.at(-1)).toEqual({ hash: "1:abc", action: "clear", target: "tag", value: "Science" });
+  await expireSession(page, model);
+  await expect(page.locator("#feedback")).toBeHidden();
+});
+
+test("switching reading mode cancels a stale response and retains stories on failure", async ({ page }) => {
+  const model = await fixture(page);
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
   let release;
   const held = new Promise(resolve => { release = resolve; });
   let started;
   const requested = new Promise(resolve => { started = resolve; });
   await page.route("**/api/feeds/1/stories?**", async route => {
+    if (new URL(route.request().url()).searchParams.get("read_filter") !== "unread") return route.fallback();
     started();
     await held;
-    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ stories: [story("1:retry", "Retried result")], page: 1, can_continue: false }) });
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ stories: [story("1:stale", "Stale result")], page: 1, can_continue: false }) }).catch(() => {});
   });
-  await query.press("Enter");
+  await page.getByLabel("Show", { exact: true }).selectOption("unread");
   await requested;
-  await query.fill("next draft");
+  await page.getByLabel("Show", { exact: true }).selectOption("all");
+  await expect(page.locator("#stories")).toHaveAttribute("aria-busy", "false");
   release();
-  await expect(page.locator("#stories")).toContainText("Retried result");
-  await expect(query).toHaveValue("next draft");
-  await expect(page.getByRole("button", { name: "Clear search", exact: true })).toBeVisible();
+  await expect(page.locator("#stories")).not.toContainText("Stale result");
+  model.failRead = true;
+  await page.getByLabel("Show", { exact: true }).selectOption("focus");
+  await expect(page.locator("#story-status")).toHaveClass(/error/);
+  await expect(page.locator("#stories .story")).toHaveCount(2);
+});
+
+for (const width of [1024, 1440]) {
+  test(`newspaper photos sit beside text stories and layout survives hidden pictures at ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const model = await fixture(page);
+    model.stories = Array.from({ length: 6 }, (_, i) => ({ ...story(`1:paper${i}`, `Newspaper story ${i}`), published_at: "2026-11-13T12:00:00Z", excerpt: "A substantial introduction to this story. ".repeat(5), ...(i < 2 ? { picture: "https://fixture.invalid/photo.png" } : {}) }));
+    await page.route("https://fixture.invalid/photo.png", route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400"><rect width="640" height="400" fill="#987"/></svg>' }));
+    await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+    await page.getByRole("button", { name: "All feeds", exact: true }).click();
+    await expect.poll(() => page.locator("#stories img").first().evaluate(async image => { await image.decode(); return image.naturalWidth > 0; })).toBe(true);
+    const lead = await page.locator("#stories .story").nth(0).boundingBox();
+    const sideTop = await page.locator("#stories .story").nth(1).boundingBox();
+    const sideBottom = await page.locator("#stories .story").nth(2).boundingBox();
+    expect(lead.width).toBeGreaterThan(sideTop.width * 1.8);
+    expect(Math.abs(lead.y - sideTop.y)).toBeLessThan(2);
+    expect(sideBottom.y).toBeGreaterThanOrEqual(sideTop.y + sideTop.height - 1);
+    expect(lead.x + lead.width).toBeLessThan(sideTop.x);
+    const original = await page.locator("#stories .story").evaluateAll(nodes => nodes.map(node => node.dataset.hash));
+    await page.getByRole("button", { name: "Appearance", exact: true }).click();
+    await page.getByLabel("Pictures", { exact: true }).selectOption("hide");
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(await page.locator("#stories .story").evaluateAll(nodes => nodes.map(node => node.dataset.hash))).toEqual(original);
+    await expect(page.locator("#stories .story-picture").first()).toBeHidden();
+  });
+}
+
+for (const count of [2, 3]) {
+  test(`${count}-story portrait newspaper preserves the photograph and gives neighbours wider text columns`, async ({ page }) => {
+    const model = await fixture(page);
+    model.stories = Array.from({ length: count }, (_, i) => ({ ...story(`1:portrait${i}`, `Portrait edition ${i}`), excerpt: "A considered introduction with enough detail to read before opening the full article. ".repeat(6), ...(i === 0 ? { picture: "https://fixture.invalid/portrait.svg" } : {}) }));
+    await page.route("https://fixture.invalid/portrait.svg", route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="240"><rect width="120" height="240" fill="#987"/></svg>' }));
+    await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+    await page.getByRole("button", { name: "Synthetic feed" }).click();
+    const image = page.locator("#stories img").first();
+    await expect.poll(() => image.evaluate(async node => { await node.decode(); return node.naturalHeight > node.naturalWidth; })).toBe(true);
+    await expect(page.locator("#stories > li").first()).toHaveAttribute("data-press-role", count === 3 ? "portrait" : "duo-text");
+    const boxes = await page.locator("#stories .story").evaluateAll(nodes => nodes.map(node => { const box = node.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width }; }));
+    expect(boxes[1].width).toBeGreaterThan(boxes[0].width * 1.8);
+    expect(boxes[1].x).toBeGreaterThan(boxes[0].x);
+    if (count === 3) expect(boxes[2].y).toBeGreaterThan(boxes[1].y);
+    expect(await image.evaluate(node => getComputedStyle(node).objectFit)).toBe("contain");
+    expect(await page.locator("#stories .story-excerpt").nth(1).evaluate(node => getComputedStyle(node).columnCount)).toBe("2");
+    expect(model.actions).toEqual([]);
+  });
+}
+
+test("a later photograph sits beside the opening text without changing story order", async ({ page }) => {
+  const model = await fixture(page);
+  model.stories = Array.from({ length: 3 }, (_, i) => ({ ...story(`1:later${i}`, `Chronological story ${i}`), ...(i === 1 ? { picture: "https://fixture.invalid/later.png" } : {}) }));
+  await page.route("https://fixture.invalid/later.png", route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400"><rect width="640" height="400" fill="#987"/></svg>' }));
+  await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await expect(page.locator("#stories > li").nth(1)).toHaveAttribute("data-press-role", "feature-right");
+  const boxes = await page.locator("#stories .story").evaluateAll(nodes => nodes.map(node => { const box = node.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width }; }));
+  expect(boxes[1].width).toBeGreaterThan(boxes[0].width * 1.8);
+  expect(Math.abs(boxes[1].y - boxes[0].y)).toBeLessThan(2);
+  expect(boxes[2].x).toBe(boxes[0].x);
+  expect(boxes[2].y).toBeGreaterThan(boxes[0].y);
+  expect(await page.locator("#stories .story").evaluateAll(nodes => nodes.map(node => node.dataset.hash))).toEqual(["1:later0", "1:later1", "1:later2"]);
+  expect(await page.locator("#stories strong").first().evaluate(node => getComputedStyle(node).textWrap)).toBe("balance");
+  expect(model.actions).toEqual([]);
+});
+
+test("newspaper continuation leaves the existing composition and story nodes in place", async ({ page }) => {
+  const model = await fixture(page);
+  model.hasMore = true;
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  await page.route("**/api/feeds/1/stories?**", async route => {
+    if (new URL(route.request().url()).searchParams.get("page") !== "2") return route.fallback();
+    await held;
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ stories: [story("1:appended", "A later story")], page: 2, can_continue: false }) });
+  });
+  await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await expect(page.locator("#stories > li").first()).toHaveAttribute("data-press-role", "brief");
+  await page.locator("#stories .story").first().evaluate(node => { window.newspaperOriginal = node; });
+  const before = await page.locator("#stories .story").first().boundingBox();
+  release();
+  await expect(page.locator("#stories .story")).toHaveCount(3);
+  await expect(page.locator("#stories > li").first()).toHaveAttribute("data-press-role", "brief");
+  expect(await page.locator("#stories .story").first().evaluate(node => node === window.newspaperOriginal)).toBe(true);
+  const after = await page.locator("#stories .story").first().boundingBox();
+  expect(after.width).toBe(before.width);
+  expect(after.y).toBe(before.y);
+  expect(model.actions).toEqual([]);
+});
+
+test("newspaper text weight gives a substantial introduction room instead of stretching every brief", async ({ page }) => {
+  const model = await fixture(page);
+  const introduction = "A longer introduction provides the background, evidence, and practical context a reader needs. ".repeat(10);
+  model.stories = Array.from({ length: 6 }, (_, i) => ({ ...story(`1:type${i}`, `Type-led story ${i}`), excerpt: i === 0 ? introduction : "A short item with just the essential facts." }));
+  await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+  await page.getByRole("button", { name: "Synthetic feed" }).click();
+  await expect(page.locator("#stories > li").first()).toHaveAttribute("data-press-role", "lead");
+  const widths = await page.locator("#stories .story").evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().width));
+  expect(widths[0]).toBeGreaterThan(widths[1] * 1.8);
+  expect(Math.abs(widths[3] - widths[4])).toBeLessThan(1);
+  expect(Math.abs(widths[4] - widths[5])).toBeLessThan(1);
+  await expect(page.locator("#stories .story-excerpt").first()).toHaveText(introduction.trim());
+  expect(await page.locator("#stories .story-excerpt").first().evaluate(node => getComputedStyle(node).columnCount)).toBe("2");
+  expect(model.actions).toEqual([]);
 });

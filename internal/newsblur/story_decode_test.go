@@ -1,6 +1,41 @@
 package newsblur
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
+
+func TestFocusUsesNewsBlurIntelligencePrecedence(t *testing.T) {
+	for _, tc := range []struct {
+		name, fields string
+		visible      bool
+	}{
+		{"server score wins", `"score":0,"intelligence":{"title":1}`, false},
+		{"positive title beats negative feed", `"intelligence":{"title":1,"feed":-1}`, true},
+		{"positive author beats negative tag", `"intelligence":{"author":1,"tags":-1}`, true},
+		{"manual hide beats positive author", `"intelligence":{"author":1,"title":-2}`, false},
+		{"negative topic beats positive feed", `"intelligence":{"tags":-1,"feed":1}`, false},
+		{"positive feed baseline", `"intelligence":{"title":0,"feed":1}`, true},
+		{"neutral", `"intelligence":{}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			page, err := focusedPage([]byte(`{"stories":[{"story_hash":"1:abc",`+tc.fields+`}]}`), 1, "focus")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (len(page.Stories) == 1) != tc.visible {
+				t.Fatalf("Focus inclusion = %v, want %v", len(page.Stories) == 1, tc.visible)
+			}
+			if !tc.visible && page.Hidden != 1 {
+				t.Fatal("filtered story must preserve continuation")
+			}
+		})
+	}
+	_, err := focusedPage([]byte(`{"stories":[{"story_hash":"1:unknown"}]}`), 1, "focus")
+	if !errors.Is(err, ErrFocusUnavailable) {
+		t.Fatal("missing scores must explain unavailable Focus")
+	}
+}
 
 func TestPublicationTimestamp(t *testing.T) {
 	for _, tc := range []struct {

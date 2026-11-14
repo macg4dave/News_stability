@@ -31,6 +31,10 @@ func (a *Auth) readingFailure(w http.ResponseWriter, e session.Entry, err error,
 		apiError(w, http.StatusUnauthorized, "session_expired", "Your NewsBlur session expired. Sign in again.")
 		return
 	}
+	if errors.Is(err, newsblur.ErrFocusUnavailable) {
+		apiError(w, http.StatusBadGateway, "focus_unavailable", "This NewsBlur server did not provide intelligence scores. Choose All or Unread to continue.")
+		return
+	}
 	if errors.Is(err, newsblur.ErrStoryNotFound) {
 		apiError(w, http.StatusNotFound, "story_unavailable", "This linked story is no longer available.")
 		return
@@ -77,12 +81,11 @@ func (a *Auth) stories(w http.ResponseWriter, r *http.Request) {
 	if filter == "" {
 		filter = "all"
 	}
-	query := r.URL.Query().Get("query")
-	if (filter != "all" && filter != "unread") || len(query) > 256 {
-		apiError(w, http.StatusBadRequest, "invalid_request", "Choose all or unread stories and a search of at most 256 bytes.")
+	if !newsblur.ValidReadFilter(filter) || r.URL.Query().Has("query") {
+		apiError(w, http.StatusBadRequest, "invalid_request", "Choose all, unread, or Focus stories.")
 		return
 	}
-	result, err := e.Client.Stories(r.Context(), id, page, filter, query)
+	result, err := e.Client.Stories(r.Context(), id, page, filter)
 	if err != nil {
 		a.readingFailure(w, e, err, "Could not load stories. Your current view has been kept.")
 		return
@@ -97,37 +100,6 @@ func (a *Auth) stories(w http.ResponseWriter, r *http.Request) {
 		Page        int           `json:"page"`
 		CanContinue bool          `json:"can_continue"`
 	}{items, result.Page, result.Page < 10000 && (len(items) > 0 || result.Hidden > 0)})
-}
-
-func (a *Auth) savedStories(w http.ResponseWriter, r *http.Request) {
-	e, ok := a.readingSession(w, r)
-	if !ok {
-		return
-	}
-	page := 1
-	var err error
-	if value := r.URL.Query().Get("page"); value != "" {
-		page, err = strconv.Atoi(value)
-	}
-	if err != nil || page < 1 || page > 10000 {
-		apiError(w, http.StatusBadRequest, "invalid_request", "Choose a valid saved stories page.")
-		return
-	}
-	result, err := e.Client.SavedStories(r.Context(), page)
-	if err != nil {
-		a.readingFailure(w, e, err, "Could not load saved stories. Your current view has been kept.")
-		return
-	}
-	if _, ok := a.store.Get(e.ID); !ok {
-		apiError(w, http.StatusUnauthorized, "session_expired", "Your session expired. Sign in again.")
-		return
-	}
-	items := a.presentStories(result.Stories, e.Client)
-	writeJSON(w, http.StatusOK, struct {
-		Stories     []readerStory `json:"stories"`
-		Page        int           `json:"page"`
-		CanContinue bool          `json:"can_continue"`
-	}{items, page, page < 10000 && (len(items) > 0 || result.Hidden > 0)})
 }
 
 // readerStory is the sole presentation contract for feed, briefing, and linked
@@ -145,7 +117,8 @@ type readerStory struct {
 	Pictures       []string                `json:"pictures,omitempty"`
 	Thumbnail      string                  `json:"thumbnail,omitempty"`
 	Read           bool                    `json:"read"`
-	Saved          bool                    `json:"saved"`
+	Tags           []string                `json:"tags"`
+	Score          int                     `json:"score"`
 	ReadingMinutes int                     `json:"reading_minutes"`
 	FeedID         int                     `json:"feed_id,omitempty"`
 	FeedTitle      string                  `json:"feed_title,omitempty"`
@@ -175,7 +148,7 @@ func (a *Auth) presentStories(stories []newsblur.Story, client *newsblur.Client)
 		if related == nil {
 			related = []newsblur.RelatedStory{}
 		}
-		result = append(result, readerStory{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, PublishedAt: s.PublishedAt, URL: article.SafeURL(s.URL), HTML: safeHTML, Excerpt: article.Excerpt(safeHTML), Picture: article.FirstPicture(candidates, safeHTML), Pictures: pictures, Thumbnail: thumbnail, Read: s.Read, Saved: s.Saved, ReadingMinutes: article.ReadingMinutes(safeHTML), FeedID: s.FeedID, FeedTitle: s.FeedTitle, Kind: s.Kind, Related: related, Links: article.Links(safeHTML)})
+		result = append(result, readerStory{Hash: s.Hash, Title: s.Title, Author: s.Author, Date: s.Date, PublishedAt: s.PublishedAt, URL: article.SafeURL(s.URL), HTML: safeHTML, Excerpt: article.Excerpt(safeHTML), Picture: article.FirstPicture(candidates, safeHTML), Pictures: pictures, Thumbnail: thumbnail, Read: s.Read, Tags: s.Tags, Score: s.Score, ReadingMinutes: article.ReadingMinutes(safeHTML), FeedID: s.FeedID, FeedTitle: s.FeedTitle, Kind: s.Kind, Related: related, Links: article.Links(safeHTML)})
 	}
 	return result
 }

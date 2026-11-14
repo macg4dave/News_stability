@@ -19,7 +19,7 @@ func TestExpiryCapacityAndRotation(t *testing.T) {
 		t.Fatalf("capacity error = %v", err)
 	}
 	client, _ := newsblur.New("https://synthetic.invalid")
-	auth, ok := store.Authenticate(old.ID, "fixture", client)
+	auth, ok := store.Authenticate(old.ID, "fixture", client, false)
 	if !ok || auth.ID == old.ID || auth.CSRF == old.CSRF || auth.Username != "fixture" {
 		t.Fatal("login did not rotate identity")
 	}
@@ -36,7 +36,7 @@ func TestExpiryCapacityAndRotation(t *testing.T) {
 	if _, ok := store.Get(auth.ID); ok {
 		t.Fatal("expired session still accessible")
 	}
-	if _, ok := store.Authenticate(auth.ID, "fixture", client); ok {
+	if _, ok := store.Authenticate(auth.ID, "fixture", client, false); ok {
 		t.Fatal("expired session resurrected")
 	}
 	if _, err := store.Create(); err != nil {
@@ -52,7 +52,7 @@ func TestOnlyOneConcurrentLoginCanReplaceSession(t *testing.T) {
 	var group sync.WaitGroup
 	for range 20 {
 		group.Go(func() {
-			if _, ok := store.Authenticate(old.ID, "fixture", client); ok {
+			if _, ok := store.Authenticate(old.ID, "fixture", client, false); ok {
 				winners.Add(1)
 			}
 		})
@@ -77,7 +77,7 @@ func TestDeletedAndExpiredAnonymousSessionsCannotLogin(t *testing.T) {
 				store.entries[e.ID] = e
 				store.mu.Unlock()
 			}
-			if _, ok := store.Authenticate(e.ID, "fixture", client); ok {
+			if _, ok := store.Authenticate(e.ID, "fixture", client, false); ok {
 				t.Fatal("stale session authenticated")
 			}
 			if _, err := store.Create(); err != nil {

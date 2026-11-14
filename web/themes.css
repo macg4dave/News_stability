@@ -2,15 +2,11 @@
  * SPDX-License-Identifier: MIT
  * Paper colors adapted from Memos web/src/themes/paper.css at
  * 30f8bad87d586228381c54beea686162cd8c5265.
- * Modified: map a subset of warm palette tokens to News Stability's variables;
- * retain our light/dark palettes and add reader font/size settings.
+ * Modified: map warm palette tokens to News Stability's variables and add
+ * reader font/size settings. Other palettes are archived outside the web root.
  * Full notice: /third-party-notices.txt and licenses/Memos-MIT.txt.
  */
-:root { --reading-font:Georgia,serif; --reading-size:1.12rem; --button-ink:var(--panel); }
-:root[data-theme="light"] { color-scheme:light; --paper:#f7f6f2; --panel:#fdfcf9; --ink:#253531; --muted:#5e6c65; --line:#dedfd6; --accent:#31654f; --wash:#e9eee5; --danger:#9b3530; }
-:root[data-theme="dark"] { color-scheme:dark; --paper:#1b2420; --panel:#222e27; --ink:#e3e8de; --muted:#a3b2a5; --line:#3a473d; --accent:#9bcdaf; --wash:#2c3c30; --danger:#ffb0a5; --button-ink:var(--paper); }
-:root[data-theme="paper"] { color-scheme:light; --paper:#f5ede4; --panel:#fbf6f0; --ink:#2b2219; --muted:#5d5044; --line:#d3c5b4; --accent:#2f251c; --wash:#ede3d7; --danger:#943b29; }
-@media (prefers-color-scheme:dark) { :root:not([data-theme]) { color-scheme:dark; --button-ink:var(--paper); } }
+:root { color-scheme:light; --reading-font:Georgia,serif; --reading-size:1.12rem; --button-ink:var(--panel); --paper:#f5ede4; --panel:#fbf6f0; --ink:#2b2219; --muted:#5d5044; --line:#d3c5b4; --accent:#2f251c; --wash:#ede3d7; --danger:#943b29; }
 :root[data-reading-font="sans"] { --reading-font:system-ui,sans-serif; }
 :root[data-reading-size="large"] { --reading-size:1.3rem; }
 :root[data-reading-size="larger"] { --reading-size:1.5rem; }

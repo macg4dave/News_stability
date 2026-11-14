@@ -33,6 +33,20 @@ func signed(source, size string) string {
 	return "/imageproxy/" + size + "sc,s" + base64.URLEncoding.EncodeToString(mac.Sum(nil)) + "/" + source
 }
 
+func syntheticPNG(width, height int) ([]byte, error) {
+	bitmap := image.NewRGBA(image.Rect(0, 0, width, height))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			bitmap.Set(x, y, color.RGBA{30, uint8(100 + x), 180, 255})
+		}
+	}
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, bitmap); err != nil {
+		return nil, err
+	}
+	return encoded.Bytes(), nil
+}
+
 func main() {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -53,19 +67,18 @@ func main() {
 	if err := os.WriteFile("/fixture-ca/key.pem", pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: private}), 0600); err != nil {
 		log.Fatal(err)
 	}
-	bitmap := image.NewRGBA(image.Rect(0, 0, 64, 40))
-	for y := 0; y < 40; y++ {
-		for x := 0; x < 64; x++ {
-			bitmap.Set(x, y, color.RGBA{30, uint8(100 + x), 180, 255})
-		}
+	picture, err := syntheticPNG(640, 400)
+	if err != nil {
+		log.Fatal(err)
 	}
-	var picture bytes.Buffer
-	if err := png.Encode(&picture, bitmap); err != nil {
+	portraitPicture, err := syntheticPNG(400, 800)
+	if err != nil {
 		log.Fatal(err)
 	}
 	var mu sync.Mutex
 	mode := "healthy"
 	reads := map[string]bool{}
+	training := map[string]int{}
 	imageRequests := 0
 	control := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
@@ -82,11 +95,12 @@ func main() {
 			if mode == "reset" {
 				mode = "healthy"
 				reads = map[string]bool{}
+				training = map[string]int{}
 				imageRequests = 0
 			}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"mode": mode, "reads": reads, "images": imageRequests})
+		json.NewEncoder(w).Encode(map[string]any{"mode": mode, "reads": reads, "images": imageRequests, "training": training})
 	})
 	go func() { log.Fatal(http.ListenAndServe(":8081", control)) }()
 	// ServeMux cleans embedded publisher URLs; the real proxy path must survive.
@@ -120,16 +134,56 @@ func main() {
 			http.SetCookie(w, &http.Cookie{Name: "newsblur_sessionid", Value: "", Path: "/", MaxAge: -1})
 			reply(map[string]int{"code": 1})
 		case r.URL.Path == "/reader/feeds":
-			reply(map[string]any{"feeds": map[string]any{"1": map[string]any{"feed_title": "Fixture feed", "ps": 0, "nt": 12, "ng": 0}}, "folders": []int{1}})
-		case r.URL.Path == "/reader/feed/1":
-			page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+			reply(map[string]any{"feeds": map[string]any{"1": map[string]any{"feed_title": "Fixture feed", "ps": 0, "nt": 12, "ng": 0}}, "folders": []any{map[string]any{"Reading": []int{1}}}})
+		case r.URL.Path == "/classifier/save":
+			if r.Method != "POST" || r.Header.Get("X-CSRFToken") != "fixture-csrf" {
+				http.Error(w, "rejected", 403)
+				return
+			}
+			r.ParseForm()
+			if r.Form.Get("feed_id") != "1" || mode == "feedback-fail" {
+				reply(map[string]int{"code": -1})
+				return
+			}
+			for _, target := range []string{"title", "author", "tag"} {
+				for _, action := range []string{"like", "dislike", "remove_like", "remove_dislike"} {
+					if value := r.Form.Get(action + "_" + target); value != "" {
+						score := 0
+						if action == "like" {
+							score = 1
+						}
+						if action == "dislike" {
+							score = -1
+						}
+						training[target+":"+value] = score
+					}
+				}
+			}
+			reply(map[string]int{"code": 0})
+		case r.URL.Path == "/reader/feed/1" || r.URL.Path == "/reader/river_stories":
+			r.ParseForm()
+			page, _ := strconv.Atoi(r.Form.Get("page"))
 			if page < 1 {
 				page = 1
 			}
 			stories := []any{}
-			for i := (page - 1) * 4; i < page*4 && i < 12; i++ {
+			start, end := (page-1)*4, page*4
+			requested := r.Form.Get("h")
+			if requested != "" {
+				if _, err := fmt.Sscanf(requested, "1:story%d", &start); err != nil {
+					reply(map[string]any{"stories": stories})
+					return
+				}
+				end = start + 1
+			}
+			for i := start; i < end && i < 12; i++ {
 				hash := fmt.Sprintf("1:story%d", i)
 				source := fmt.Sprintf("http://publisher.invalid/picture%d.png?size=large&v=1", i)
+				// A different photograph needs a different signed source identity. Browsers
+				// can share decoded resources already displayed elsewhere in the document.
+				if mode == "portrait-lead" {
+					source = fmt.Sprintf("http://publisher.invalid/portrait%d.png?size=large&v=1", i)
+				}
 				if i == 3 {
 					source = "https://publisher.invalid/space%20here.png?size=large&v=1"
 				}
@@ -147,7 +201,18 @@ func main() {
 				if reads[hash] {
 					read = 1
 				}
-				stories = append(stories, map[string]any{"story_hash": hash, "story_title": fmt.Sprintf("Fixture story %d", i), "story_permalink": "https://publisher.invalid/article", "story_feed_id": 1, "story_content": content, "image_urls": images, "secure_image_urls": map[string]string{source: secure}, "secure_image_thumbnails": map[string]string{source: signed(source, "192,")}, "read_status": read, "story_timestamp": "1794528000"})
+				score := 0
+				if i%3 == 0 {
+					score = 1
+				}
+				title := fmt.Sprintf("Fixture story %d", i)
+				if value, ok := training["title:"+title]; ok {
+					score = value
+				}
+				if r.Form.Get("read_filter") == "unread" && read == 1 {
+					continue
+				}
+				stories = append(stories, map[string]any{"score": score, "story_authors": "Fixture writer", "story_tags": []string{"Science"}, "story_hash": hash, "story_title": fmt.Sprintf("Fixture story %d", i), "story_permalink": "https://publisher.invalid/article", "story_feed_id": 1, "story_content": content, "image_urls": images, "secure_image_urls": map[string]string{source: secure}, "secure_image_thumbnails": map[string]string{source: signed(source, "192,")}, "read_status": read, "story_timestamp": "1794528000"})
 			}
 			reply(map[string]any{"stories": stories})
 		case r.URL.Path == "/rss_feeds/original_text":
@@ -156,7 +221,7 @@ func main() {
 				return
 			}
 			source := "http://publisher.invalid/picture0.png?size=large&v=1"
-			reply(map[string]any{"story_hash": r.URL.Query().Get("story_hash"), "failed": false, "original_text": "<p>Complete article from NewsBlur.</p><img src=\"" + source + "\" alt=\"Synthetic landscape\">" + strings.Repeat("<p>More synthetic article text for scrolling.</p>", 60), "secure_image_urls": map[string]string{source: signed(source, "")}})
+			reply(map[string]any{"story_hash": r.URL.Query().Get("story_hash"), "failed": false, "original_text": "<p>Complete article from NewsBlur.</p><figure><img src=\"" + source + "\" alt=\"Synthetic landscape\"><figcaption>Synthetic landscape. Credit: Fixture photographer.</figcaption></figure>" + strings.Repeat("<p>More synthetic article text for scrolling.</p>", 60), "secure_image_urls": map[string]string{source: signed(source, "")}})
 		case r.URL.Path == "/reader/mark_story_hashes_as_read":
 			r.ParseForm()
 			if mode == "read-fail" {
@@ -183,7 +248,11 @@ func main() {
 				return
 			}
 			w.Header().Set("Content-Type", "image/png")
-			w.Write(picture.Bytes())
+			if mode == "portrait-lead" {
+				w.Write(portraitPicture)
+			} else {
+				w.Write(picture)
+			}
 		default:
 			http.NotFound(w, r)
 		}

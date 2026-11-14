@@ -1,0 +1,5 @@
+/* Archived News Stability light/dark/system palettes. Not loaded or served by
+ * the reader. Warm paper is the sole active development palette. */
+:root[data-theme="light"] { color-scheme:light; --paper:#f7f6f2; --panel:#fdfcf9; --ink:#253531; --muted:#5e6c65; --line:#dedfd6; --accent:#31654f; --wash:#e9eee5; --danger:#9b3530; }
+:root[data-theme="dark"] { color-scheme:dark; --paper:#1b2420; --panel:#222e27; --ink:#e3e8de; --muted:#a3b2a5; --line:#3a473d; --accent:#9bcdaf; --wash:#2c3c30; --danger:#ffb0a5; --button-ink:var(--paper); }
+@media (prefers-color-scheme:dark) { :root:not([data-theme]) { color-scheme:dark; --paper:#1b2420; --panel:#222e27; --ink:#e3e8de; --muted:#a3b2a5; --line:#3a473d; --accent:#9bcdaf; --wash:#2c3c30; --danger:#ffb0a5; --button-ink:var(--paper); } }

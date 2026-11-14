@@ -15,9 +15,17 @@ these projects is included. The implementation is original native JavaScript/CSS
 - Fluent Reader: https://github.com/yang991178/fluent-reader at
   `5912070309759eff37204a5046caba3c780fa4c0` (inspected source: BSD-3-Clause).
 
-Pinned files, review decisions, and the obligations for any future import are
-recorded in `docs/open-source-reuse.md`. The references' licenses do not replace
+The inspected revisions are pinned above. Newspaper composition research and
+future-import decisions are recorded in `docs/newspaper-research.md`.
+The references' licenses do not replace
 the licenses of the actual incorporated components listed below.
+
+Newspaper composition also uses FT Labs Columnflow, Treesaver, Adobe BalanceText,
+Tufte CSS, and Ghost Source as design references. Their source and actual licence
+files were inspected; no code, translated source, fonts, photographs, icons or
+branding from them is distributed here. The composer and native CSS are original.
+Exact revisions, inspected files, licence findings and implementation decisions
+are recorded in [the newspaper research](docs/newspaper-research.md).
 
 ## Adapted source
 
@@ -67,8 +75,8 @@ Pinned revision: `aebb4021a56048eed4c8feb325399be5f46e5470`
 
 Theme application and preference handling in `webapp/src/composables/useTheme.ts`
 are adapted into `web/appearance.js`. Changes: plain JavaScript, allowlisted
-local-only appearance settings, paper theme, font/size controls, and CSS-driven
-system mode. Vue, account synchronization, favicon behavior, and the upstream
+local-only appearance settings, a fixed paper theme, font/size controls, and
+migration of old theme preferences. Vue, account synchronization, favicon behavior, and the upstream
 placeholder contrast-validation function are not included.
 
 Full license: [licenses/Shiori-MIT.txt](licenses/Shiori-MIT.txt).
@@ -82,7 +90,8 @@ Source repository: https://github.com/usememos/memos
 Pinned revision: `30f8bad87d586228381c54beea686162cd8c5265`
 
 - A subset of `web/src/themes/paper.css` colors maps to the reader's CSS variables
-  in `web/themes.css`; typography settings and existing light/dark palettes remain local.
+  in `web/themes.css`; typography settings are local. The local light/dark/system
+  variants are archived outside the served website while paper is the only active palette.
 - `getRelationBuckets` in `web/src/components/MemoMetadata/Relation/relationHelpers.ts`
   is adapted into `web/relations.js`, using story hashes and explicit hyperlink
   edges on the loaded page. Memo types, React, persistence, and backend code are
@@ -122,7 +131,7 @@ any new license terms. `python scripts/update_notices.py --check` checks that th
 copies and public notice bundle match the current source/module inventory.
 The generator does not decide license compatibility or fetch unrelated projects.
 
-Projects reviewed but not copied (including gofeed and gorss) are documented in
-[the reuse review](docs/open-source-reuse.md). Their code is not distributed here.
+The newspaper references are documented in
+[the research review](docs/newspaper-research.md). Their code is not distributed here.
 Container base images retain their own upstream notices; this inventory covers
 the application source and Go dependencies, not a replacement audit of OS packages.

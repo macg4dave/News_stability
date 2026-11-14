@@ -15,7 +15,7 @@ type Sanitizer struct{ policy *bluemonday.Policy }
 // New creates an immutable policy safe for concurrent sanitization.
 func New() *Sanitizer {
 	p := bluemonday.NewPolicy()
-	p.AllowElements("p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "code", "strong", "b", "em", "i", "s", "del", "u", "ul", "ol", "li", "dl", "dt", "dd", "table", "thead", "tbody", "tr", "th", "td", "caption", "sup", "sub", "a")
+	p.AllowElements("figure", "figcaption", "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "code", "strong", "b", "em", "i", "s", "del", "u", "ul", "ol", "li", "dl", "dt", "dd", "table", "thead", "tbody", "tr", "th", "td", "caption", "sup", "sub", "a")
 	p.AllowAttrs("href", "title").OnElements("a")
 	p.AllowElements("img")
 	p.AllowAttrs("src", "alt").OnElements("img")

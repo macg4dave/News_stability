@@ -1,3 +1,5 @@
+import { initializeNewspaper } from "./newspaper.js";
+import { initializeFeedback } from "./feedback.js";
 import { KeyboardHandler } from "./keyboard.js";
 import { initializeAppearance } from "./appearance.js";
 import { getRelationBuckets, pageRelations } from "./relations.js";
@@ -9,13 +11,14 @@ import { publicationDate, dayKey, dayLabel, timeElement } from "./dates.js";
 
 const el = (id) => document.getElementById(id);
 const articlePanel = el("article");
-const state = { session: null, feeds: new Map(), folders: [], feed: null, view: "feed", page: 1, readRevision: 0, pageRevision: 0, canContinue: false, moreError: false, emptyPages: 0, stories: [], story: null, originStory: null, readingPosition: null, selected: null, resume: null, expiryTimer: null, epoch: 0, feedRequest: null, storyRequest: null, articleRequest: null };
+const state = { session: null, feeds: new Map(), folders: [], feed: null, folder: null, view: "feed", page: 1, readRevision: 0, pageRevision: 0, canContinue: false, moreError: false, emptyPages: 0, stories: [], story: null, originStory: null, readingPosition: null, selected: null, resume: null, expiryTimer: null, epoch: 0, feedRequest: null, storyRequest: null, articleRequest: null };
 initializeAppearance();
 initializeLayout();
 const refreshPictures = initializePictures();
 el("reader").addEventListener("layoutchange", () => {
   resetScrollRead();
   placeArticle();
+  refreshNewspaper();
   if (el("reader").classList.contains("article-open")) {
     if (el("reader").dataset.layout === "list") el("article-title").scrollIntoView({ block: "nearest", behavior: "instant" });
     else window.scrollTo({ top: 0, behavior: "instant" });
@@ -69,28 +72,32 @@ function cancelReading() {
   state.articleRequest?.abort();
 }
 
-function signedOut(text = "Sign in to your NewsBlur account.", clear = false) {
+function signedOut(text = "Sign in to your NewsBlur account.") {
   cancelReading();
   clearTimeout(state.expiryTimer);
   if (el("shortcuts").open) el("shortcuts").close();
-  state.resume = !clear && (state.feed || state.view !== "feed") ? { username: state.session?.username, view: state.view, feedID: state.feed?.id, page: state.page, filter: state.filter, query: state.query } : null;
+  state.resume = (state.feed || state.view !== "feed") ? { username: state.session?.username, view: state.view, feedID: state.feed?.id, page: state.page, filter: state.filter, folder: state.folder } : null;
+  feedback.reset();
   state.session = null;
   el("signin").hidden = false;
   el("reader").hidden = true;
-  el("account").hidden = true;
+
   el("login-submit").disabled = true;
   el("login-password").value = "";
+  el("login-remember").checked = false;
   message("login-status", text);
   // Discard account content before another user can sign in. Only a location
   // may be resumed, after verifying that the same username signed back in.
   state.feeds.clear();
   state.folders = [];
   state.feed = null;
+  state.folder = null;
   state.view = "feed";
   state.story = null;
   state.stories = [];
   el("feed-tree").replaceChildren();
   el("stories").replaceChildren();
+  refreshNewspaper();
   message("stories-heading", "Choose a feed");
   message("story-status", "Choose a feed to load stories.");
   state.canContinue = false;
@@ -100,11 +107,8 @@ function signedOut(text = "Sign in to your NewsBlur account.", clear = false) {
   el("collection-updated").replaceChildren();
   el("collection-updated").hidden = true;
   el("story-filters").hidden = true;
-  el("story-query").value = "";
-  updateSearchControl();
   el("read-filter").value = "all";
   state.filter = "all";
-  state.query = "";
   clearArticle();
 }
 
@@ -120,7 +124,6 @@ async function connect() {
     } else {
       el("signin").hidden = false;
       el("reader").hidden = true;
-      el("account").hidden = true;
       message("login-status", "Sign in to your NewsBlur account.");
     }
     el("login-submit").disabled = false;
@@ -130,18 +133,25 @@ async function connect() {
   }
 }
 
-function showReader() {
+function scheduleSessionExpiry() {
   clearTimeout(state.expiryTimer);
   const remaining = Date.parse(state.session.expires_at) - Date.now();
   state.expiryTimer = setTimeout(async () => {
+    if (Date.parse(state.session?.expires_at) > Date.now()) {
+      scheduleSessionExpiry();
+      return;
+    }
     signedOut("Your session expired. Sign in again to continue.");
     await connect();
     message("login-status", "Your session expired. Sign in again to continue.");
-  }, Math.max(0, remaining));
+  }, Math.min(24 * 60 * 60 * 1000, Math.max(0, remaining)));
+}
+
+function showReader() {
+  scheduleSessionExpiry();
   el("signin").hidden = true;
   el("reader").hidden = false;
-  el("account").hidden = false;
-  el("username").textContent = state.session.username;
+
   notice("");
 }
 
@@ -161,13 +171,12 @@ el("login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   el("login-submit").disabled = true;
   message("login-status", "Signing in...");
-  const payload = { username: el("login-username").value, password: el("login-password").value };
+  const payload = { username: el("login-username").value, password: el("login-password").value, remember_me: el("login-remember").checked };
   try {
     state.session = await api("/api/login", { method: "POST", body: JSON.stringify(payload) });
     showReader();
     await loadFeeds();
-    el("feeds-heading").setAttribute("tabindex", "-1");
-    el("feeds-heading").focus();
+    el("all-feeds").focus();
   } catch (error) {
     message("login-status", error.message || "Could not sign in. Try again.", true);
     if (error.code === "session_expired" || error.code === "csrf_rejected" || error.code === "session_changed") {
@@ -182,64 +191,26 @@ el("login-form").addEventListener("submit", async (event) => {
   }
 });
 
-el("logout").addEventListener("click", async () => {
-  el("logout").disabled = true;
-  cancelReading();
-  try {
-    await api("/api/logout", { method: "POST", body: "{}" });
-    signedOut("Signed out.", true);
-    await connect();
-    message("login-status", "Signed out. Sign in whenever you are ready.");
-  } catch (error) {
-    if (error.signedOut || error.code === "session_expired") {
-      signedOut("Signed out of this reader.", true);
-      await connect();
-      notice(error.message);
-    } else {
-      // A network failure leaves upstream/local outcome unknown. Never claim
-      // success or discard the retry path without a confirmed local invalidation.
-      notice(error.message || "Could not confirm sign-out. Please try again.");
-    }
-  } finally { el("logout").disabled = false; }
-});
-
 el("reconnect").addEventListener("click", connect);
 el("refresh").addEventListener("click", async () => {
   await loadFeeds();
-  if (state.session?.authenticated && (state.feed || state.view !== "feed")) await loadReadingPage({ kind: state.view, feed: state.feed, page: 1 });
+  if (state.session?.authenticated && (state.feed || state.view !== "feed")) await loadReadingPage({ kind: state.view, feed: state.feed, folder: state.folder, page: 1 });
 });
 el("daily-briefing").addEventListener("click", () => loadReadingPage({ kind: "briefing", page: 1 }));
-el("saved-stories").addEventListener("click", () => loadReadingPage({ kind: "saved", page: 1 }));
-// A filter change submits the visible query too, including any typed draft.
-// Keep request cancellation and confirmed collection state in loadReadingPage.
+el("all-feeds").addEventListener("click", () => loadReadingPage({ kind: "river", page: 1, filter: "all" }));
+el("focus-stories").addEventListener("click", () => loadReadingPage({ kind: "river", page: 1, filter: "focus" }));
 function applyStoryFilters() {
-  if (state.view === "feed" && state.feed) loadReadingPage({ kind: "feed", feed: state.feed, page: 1, filter: el("read-filter").value, query: el("story-query").value.trim() });
+ if (state.view !== "briefing" && (state.feed || state.view === "river")) loadReadingPage({ kind: state.view, feed: state.feed, folder: state.folder, page: 1, filter: el("read-filter").value });
 }
-function updateSearchControl() {
-  el("clear-search").hidden = !el("story-query").value;
-}
-el("story-filters").addEventListener("submit", (event) => {
-  event.preventDefault();
-  applyStoryFilters();
-});
+el("story-filters").addEventListener("submit", event => { event.preventDefault(); applyStoryFilters(); });
 el("read-filter").addEventListener("change", applyStoryFilters);
-el("story-query").addEventListener("input", updateSearchControl);
-el("story-query").addEventListener("search", () => {
-  if (!el("story-query").value) applyStoryFilters();
-});
-el("clear-search").addEventListener("click", () => {
-  el("story-query").value = "";
-  updateSearchControl();
-  el("story-query").focus();
-  applyStoryFilters();
-});
 
 function feedButton(feed) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "feed";
   button.dataset.feedId = String(feed.id);
-  button.setAttribute("aria-current", String(feed.id === state.feed?.id));
+  button.setAttribute("aria-current", String(state.view === "feed" && feed.id === state.feed?.id));
   const title = document.createElement("span");
   title.textContent = feed.title || "Untitled feed";
   const count = document.createElement("span");
@@ -266,12 +237,18 @@ function renderFeeds() {
         row.append(feedButton(feed));
       } else {
         const details = document.createElement("details");
-        const path = `${parent}/${index}:${folder.title}`;
+        const path = parent ? `${parent}/${index}` : String(index);
         details.dataset.folderPath = path;
         details.open = !hadFolders || openFolders.has(path);
         const summary = document.createElement("summary");
         summary.textContent = folder.title || "Untitled folder";
-        details.append(summary, tree(folder.children || [], path));
+        const readFolder = document.createElement("button");
+        readFolder.type = "button";
+        readFolder.className = "feed folder-reading";
+        readFolder.textContent = `Read ${folder.title || "folder"}`;
+        readFolder.setAttribute("aria-current", String(state.view === "river" && state.folder?.path === path));
+        readFolder.addEventListener("click", () => loadReadingPage({ kind: "river", folder: { path, title: folder.title }, page: 1 }));
+        details.append(summary, readFolder, tree(folder.children || [], path));
         row.append(details);
       }
       list.append(row);
@@ -288,7 +265,9 @@ function renderFeeds() {
   }
   el("feed-tree").replaceChildren(root);
   el("daily-briefing").setAttribute("aria-current", String(state.view === "briefing"));
-  el("saved-stories").setAttribute("aria-current", String(state.view === "saved"));
+  el("all-feeds").setAttribute("aria-current", String(state.view === "river" && !state.folder && state.filter !== "focus"));
+  el("focus-stories").setAttribute("aria-current", String(state.view === "river" && !state.folder && state.filter === "focus"));
+  el("focus-count").textContent = String([...state.feeds.values()].reduce((sum, feed) => sum + feed.positive, 0));
 }
 
 async function loadFeeds() {
@@ -309,8 +288,8 @@ async function loadFeeds() {
     const resume = state.resume;
     state.resume = null;
     if (resume?.username === state.session?.username) {
-      if (resume.view !== "feed") await loadReadingPage({ kind: resume.view, page: 1 });
-      else if (state.feeds.has(resume.feedID)) await loadReadingPage({ kind: "feed", feed: state.feeds.get(resume.feedID), page: 1, filter: resume.filter, query: resume.query });
+      if (resume.view !== "feed") await loadReadingPage({ kind: resume.view, folder: resume.folder, filter: resume.filter, page: 1 });
+      else if (state.feeds.has(resume.feedID)) await loadReadingPage({ kind: "feed", feed: state.feeds.get(resume.feedID), page: 1, filter: resume.filter });
     }
     if (state.feed && state.feeds.has(state.feed.id)) {
       state.feed = state.feeds.get(state.feed.id);
@@ -346,6 +325,7 @@ function clearArticle() {
   state.selected = null;
   state.originStory = null;
   el("back-to-stories").hidden = true;
+  el("story-return").hidden = true;
   message("article-title", "A little space for the stories that matter.");
   message("article-feed", "SETTLE IN");
   message("article-meta", "Choose a story to start reading.");
@@ -354,6 +334,7 @@ function clearArticle() {
   el("original").removeAttribute("href");
   el("article-status").hidden = true;
   el("full-text-status").hidden = true;
+  el("feedback").hidden = true;
   el("connections").replaceChildren();
   el("connections").hidden = true;
 }
@@ -361,7 +342,7 @@ function clearArticle() {
 function renderStoryMeta(target, story) {
   const readingTime = story.reading_minutes > 0 ? `About ${story.reading_minutes} min read` : "";
   const date = publicationDate(story);
-  const parts = [story.kind === "briefing_summary" ? "NewsBlur summary" : "", story.feed_title, story.author, date ? timeElement(date) : story.date, readingTime, story.read ? "Read" : "Unread", story.saved ? "Saved" : ""].filter(Boolean);
+  const parts = [story.kind === "briefing_summary" ? "NewsBlur summary" : "", story.feed_title, story.author, date ? timeElement(date) : story.date, readingTime, story.read ? "Read" : "Unread"].filter(Boolean);
   target.replaceChildren();
   for (const part of parts) {
     if (target.childNodes.length) target.append(" · ");
@@ -382,6 +363,7 @@ function selectStory(story, preserveOrigin = false) {
   if (!preserveOrigin && state.stories.some((item) => item.hash === story.hash)) state.originStory = story.hash;
   placeArticle();
   el("back-to-stories").hidden = !state.originStory;
+  el("story-return").hidden = !state.originStory;
   message("article-title", story.title || "Untitled story");
   message("article-feed", story.feed_title || state.feeds.get(story.feed_id)?.title || state.feed?.title || "NewsBlur");
   renderStoryMeta(el("article-meta"), story);
@@ -395,6 +377,7 @@ function selectStory(story, preserveOrigin = false) {
   if (original) el("original").href = original;
   else el("original").removeAttribute("href");
   renderConnections(story);
+  feedback.render(story);
   for (const button of el("stories").querySelectorAll(".story")) button.setAttribute("aria-current", String(button.dataset.hash === story.hash));
   if (el("reader").dataset.layout === "list") el("article-title").scrollIntoView({ block: "nearest", behavior: "instant" });
   else window.scrollTo({ top: 0, behavior: "instant" });
@@ -429,11 +412,12 @@ async function loadFullText(story) {
     const text = await api(`/api/stories/${encodeURIComponent(story.hash)}/text`, { signal: controller.signal });
     if (epoch !== state.epoch || controller.signal.aborted || state.selected !== story) return;
     if (text.hash !== story.hash || typeof text.html !== "string") throw new Error("Unexpected full-text response.");
-    // Only replace content fields: read/saved state may have changed in flight.
+    // Only replace content fields: read state may have changed in flight.
     Object.assign(story, { html: text.html, reading_minutes: text.reading_minutes, links: text.links, picture: text.picture || story.picture, pictures: text.pictures?.length ? text.pictures : story.pictures, fullTextLoaded: true });
     renderArticleContent(story);
     renderStoryMeta(el("article-meta"), story);
     renderConnections(story);
+  feedback.render(story);
     message("full-text-status", "Full text from NewsBlur.");
   } catch (error) {
     if (epoch !== state.epoch || controller.signal.aborted || state.selected !== story) return;
@@ -488,7 +472,7 @@ async function drainReads() {
         for (const button of el("stories").querySelectorAll(".story")) {
           if (button.dataset.hash !== item.story.hash) continue;
           button.classList.add("read");
-          const dot = button.querySelector(".read-dot");
+          const dot = button.querySelector(".read-indicator");
           if (dot) dot.title = "Read";
           renderStoryMeta(button.querySelector("small"), item.story);
         }
@@ -535,9 +519,11 @@ function returnToStories() {
   if (state.readingPosition) window.scrollTo({ left: state.readingPosition.x, top: state.readingPosition.y, behavior: "instant" });
   const box = origin.getBoundingClientRect();
   if (box.bottom <= 0 || box.top >= innerHeight) origin.scrollIntoView({ block: "center", behavior: "instant" });
+  refreshNewspaper();
   scheduleMore();
 }
 el("back-to-stories").addEventListener("click", returnToStories);
+el("back-to-previous").addEventListener("click", returnToStories);
 
 function placeArticle() {
   const inline = el("reader").dataset.layout === "list";
@@ -581,11 +567,15 @@ function renderStories(items = state.stories, append = false) {
     button.setAttribute("aria-current", String(story.hash === state.story));
     const picture = createPicture(story.pictures?.length ? story.pictures : story.picture, "", true, story.thumbnail);
     if (picture) button.append(picture);
+    const kicker = document.createElement("span");
+    kicker.className = "story-kicker";
+    kicker.textContent = story.feed_title || state.feeds.get(story.feed_id)?.title || state.feed?.title || "NewsBlur";
+    button.append(kicker);
     const title = document.createElement("strong");
     title.dir = "auto";
     title.textContent = story.title || "Untitled story";
     const dot = document.createElement("span");
-    dot.className = "read-dot";
+    dot.className = "read-indicator";
     dot.title = story.read ? "Read" : "Unread";
     dot.setAttribute("aria-hidden", "true");
     title.prepend(dot);
@@ -597,6 +587,7 @@ function renderStories(items = state.stories, append = false) {
       excerpt.className = "story-excerpt";
       excerpt.dir = "auto";
       excerpt.textContent = story.excerpt;
+      excerpt.dataset.fullExcerpt = story.excerpt;
       // The title and metadata name the button; the excerpt remains available
       // in reading order without making keyboard controls excessively verbose.
       const titleID = `story-title-${offset + list.childElementCount}`;
@@ -610,6 +601,11 @@ function renderStories(items = state.stories, append = false) {
       if (el("reader").dataset.layout === "list" && el("reader").classList.contains("article-open") && state.originStory === story.hash) returnToStories();
       else selectStory(story);
     });
+    const continuation = document.createElement("span");
+    continuation.className = "story-continue";
+    continuation.textContent = "Continue reading";
+    continuation.setAttribute("aria-hidden", "true");
+    button.append(continuation);
     row.append(button);
     list.append(row);
   }
@@ -617,6 +613,7 @@ function renderStories(items = state.stories, append = false) {
     el("stories").append(list);
     placeArticle();
     refreshPictures();
+    refreshNewspaper();
     return;
   }
   // Keep the single article panel and its controls alive while replacing rows.
@@ -626,6 +623,7 @@ function renderStories(items = state.stories, append = false) {
   placeArticle();
   focused?.focus({ preventScroll: true });
   refreshPictures();
+  refreshNewspaper();
 }
 
 function renderConnections(story) {
@@ -660,7 +658,7 @@ function renderConnections(story) {
   const visible = state.stories.some((item) => item.hash === story.hash) ? state.stories : [...state.stories, story];
   const links = getRelationBuckets(pageRelations(visible), story.hash);
   group("Links to loaded stories", links.referencing.filter((item) => !relatedHashes.has(item.hash)), "These articles are explicitly linked in the story above.");
-  group("Linked from loaded stories", links.referenced, "These loaded articles link to this story; this is not a search of all your feeds.");
+  group("Linked from loaded stories", links.referenced, "These articles in the loaded collection link to this story.");
   panel.hidden = !panel.childElementCount;
 }
 
@@ -684,12 +682,10 @@ async function loadLinkedStory(reference) {
 }
 
 async function loadReadingPage(selection) {
-  const { kind, feed, page, append = false } = selection;
+  const { kind, feed, folder = null, page, append = false } = selection;
   if (!append) resetScrollRead();
-  const sameFeed = kind === "feed" && state.view === "feed" && feed?.id === state.feed?.id;
-  const filter = selection.filter ?? (sameFeed ? state.filter || "all" : "all");
-  const query = selection.query ?? (sameFeed ? state.query || "" : "");
-  const queryDraft = el("story-query").value;
+  const sameScope = state.view === kind && feed?.id === state.feed?.id && folder?.path === state.folder?.path;
+  const filter = selection.filter ?? (sameScope ? state.filter || "all" : "all");
   state.storyRequest?.abort();
   const controller = new AbortController();
   state.storyRequest = controller;
@@ -697,26 +693,24 @@ async function loadReadingPage(selection) {
   const readRevision = state.readRevision;
   el("stories").setAttribute("aria-busy", "true");
   el("load-more").disabled = true;
-  const title = kind === "briefing" ? "Daily Briefing" : kind === "saved" ? "Saved stories" : feed.title;
+  const title = kind === "briefing" ? "Daily Briefing" : kind === "river" ? (folder ? folder.title || "Folder" : filter === "focus" ? "Focus" : "All feeds") : feed.title;
   if (append) message("stream-status", "Loading more stories...");
   else message("story-status", `Loading ${title}...`);
   try {
-    const path = kind === "briefing" ? `/api/briefing?page=${page}` : kind === "saved" ? `/api/saved?page=${page}` : `/api/feeds/${feed.id}/stories?${new URLSearchParams({ page, read_filter: filter, query })}`;
+    const params = new URLSearchParams({ page, read_filter: filter });
+    if (folder) { params.set("folder", folder.path); params.set("folder_title", folder.title); }
+    const path = kind === "briefing" ? `/api/briefing?page=${page}` : kind === "river" ? `/api/river?${params}` : `/api/feeds/${feed.id}/stories?${params}`;
     const result = await api(path, { signal: controller.signal });
     if (epoch !== state.epoch || controller.signal.aborted) return;
-    const changed = state.view !== kind || state.feed?.id !== feed?.id || state.filter !== filter || state.query !== query;
+    const changed = state.view !== kind || state.feed?.id !== feed?.id || state.filter !== filter || state.folder?.path !== folder?.path;
     state.feed = feed || null;
+    state.folder = folder;
     state.view = kind;
     state.page = page;
     state.pageRevision = readRevision;
     state.filter = filter;
-    state.query = query;
-    el("story-filters").hidden = kind !== "feed";
-    if (!append) {
-      el("read-filter").value = filter;
-      if (!sameFeed || el("story-query").value === queryDraft) el("story-query").value = query;
-      updateSearchControl();
-    }
+    el("story-filters").hidden = kind === "briefing";
+    if (!append) el("read-filter").value = filter;
     const known = new Set(append ? state.stories.map((story) => story.hash) : []);
     const fresh = result.stories.filter((story) => {
       if (known.has(story.hash)) return false;
@@ -728,6 +722,9 @@ async function loadReadingPage(selection) {
     state.moreError = false;
     state.emptyPages = fresh.length ? 0 : (append ? state.emptyPages + 1 : 1);
     if (!append) state.preview = result.preview;
+    if (!append) state.limited = false;
+    state.limited ||= result.limited === true;
+    state.limitReached = result.limit_reached === true;
     if (!append && changed) clearArticle();
     else if (!append && state.story) {
       const selected = state.stories.find((story) => story.hash === state.story);
@@ -752,8 +749,8 @@ async function loadReadingPage(selection) {
       disabled: "Daily Briefing is turned off in NewsBlur. Enable it there to receive summaries.",
       empty: "No briefing is available yet. Check back after NewsBlur creates one.",
     };
-    const ready = state.stories.length ? `${state.stories.length} stories${state.preview ? " · NewsBlur preview" : ""}` : result.can_continue ? "Looking for visible stories..." : query ? "No stories match this search." : kind === "saved" ? "No saved stories." : "No stories in this feed.";
-    message("story-status", kind === "briefing" && briefingStates[result.state] ? briefingStates[result.state] : ready);
+    const ready = state.stories.length ? `${state.stories.length} stories${state.preview ? " · NewsBlur preview" : ""}` : result.can_continue ? "Looking for visible stories..." : filter === "focus" ? "No Focus stories yet. Like authors or topics while reading to train NewsBlur." : "No stories in this collection.";
+    message("story-status", kind === "briefing" && briefingStates[result.state] ? briefingStates[result.state] : ready + (state.limited ? " · NewsBlur limits this collection for your account." : ""));
   } catch (error) {
     if (epoch === state.epoch && !controller.signal.aborted) {
       state.moreError = true;
@@ -774,7 +771,7 @@ function renderStreamStatus() {
   el("load-more").hidden = !state.canContinue;
   el("load-more").disabled = state.storyRequest !== null;
   el("load-more").textContent = state.moreError ? "Retry loading stories" : "Load more stories";
-  const text = state.moreError ? "Could not load more stories. Your current stories have been kept." : !state.canContinue ? "No more stories." : state.emptyPages >= 3 ? "No new visible stories in the last few batches. Load more to continue." : "More stories load as you scroll.";
+  const text = state.moreError ? "Could not load more stories. Your current stories have been kept." : !state.canContinue ? (state.limitReached ? "NewsBlur's collection page limit reached. Choose a feed to keep reading." : "No more stories.") : state.emptyPages >= 3 ? "No new visible stories in the last few batches. Load more to continue." : "More stories load as you scroll.";
   message("stream-status", text, state.moreError);
 }
 
@@ -785,8 +782,8 @@ function loadMoreStories(automatic = false) {
   // Read writes can shift the offsets of NewsBlur's unread-only result set.
   // Restart its scan and deduplicate against loaded rows instead of skipping
   // stories. A write during the request leaves the revisions different again.
-  const rebase = state.view === "feed" && state.filter === "unread" && state.pageRevision !== state.readRevision;
-  return loadReadingPage({ kind: state.view, feed: state.feed, page: rebase ? 1 : state.page + 1, append: true });
+  const rebase = state.view !== "briefing" && state.filter !== "all" && state.pageRevision !== state.readRevision;
+  return loadReadingPage({ kind: state.view, feed: state.feed, folder: state.folder, page: rebase ? 1 : state.page + 1, append: true });
 }
 
 const scheduleMore = initializeInfiniteScroll(el("stream-footer"), () => loadMoreStories(true));
@@ -800,6 +797,10 @@ function moveStory(direction) {
   const next = current < 0 ? (direction > 0 ? 0 : state.stories.length - 1) : current + direction;
   if (next >= 0 && next < state.stories.length) selectStory(state.stories[next]);
 }
+
+const refreshNewspaper = initializeNewspaper(el("reader"), el("stories"), resetScrollRead);
+
+const feedback = initializeFeedback({ api, current: () => state.selected, epoch: () => state.epoch, readingError });
 
 const keyboard = new KeyboardHandler(() => state.session?.authenticated && !el("reader").hidden);
 keyboard.on("j", () => moveStory(1));

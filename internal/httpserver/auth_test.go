@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"newsstability/internal/httpserver"
 	"newsstability/internal/newsblur"
@@ -272,5 +274,99 @@ func TestReaderLoginRejectsCSRFBeforeUpstream(t *testing.T) {
 	response := authRequest(t, client, reader.URL, "/api/login", "wrong", `{"username":"fixture","password":"synthetic"}`)
 	if response.StatusCode != http.StatusForbidden {
 		t.Fatalf("invalid CSRF HTTP %d", response.StatusCode)
+	}
+}
+
+func TestRememberLoginControlsCookieAndSessionLifetime(t *testing.T) {
+	for _, tc := range []struct {
+		name, extra string
+		remember    bool
+		status      int
+	}{
+		{"omitted", "", false, 200},
+		{"unchecked", `,"remember_me":false`, false, 200},
+		{"checked", `,"remember_me":true`, true, 200},
+		{"invalid", `,"remember_me":"yes"`, false, 400},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var logins atomic.Int32
+			upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/api/login" {
+					logins.Add(1)
+					http.SetCookie(w, &http.Cookie{Name: "newsblur_sessionid", Value: "synthetic-remember-session", Path: "/", Secure: true})
+					fmt.Fprint(w, `{"code":1}`)
+					return
+				}
+				if r.URL.Path != "/" {
+					w.WriteHeader(404)
+					return
+				}
+				fmt.Fprint(w, "synthetic landing")
+			}))
+			defer upstream.Close()
+			reader, client := readerForUpstream(t, upstream, true)
+			before, anonymous := readSession(t, client, reader.URL)
+			if anonymous == nil || !anonymous.Expires.IsZero() || anonymous.MaxAge != 0 {
+				t.Fatal("anonymous cookie must be browser-session only")
+			}
+			earliest := time.Now()
+			response := authRequest(t, client, reader.URL, "/api/login", before.CSRF, `{"username":"fixture","password":"synthetic"`+tc.extra+`}`)
+			if response.StatusCode != tc.status {
+				t.Fatalf("login HTTP %d, want %d", response.StatusCode, tc.status)
+			}
+			if tc.status != 200 {
+				if logins.Load() != 0 {
+					t.Fatal("invalid remember flag reached upstream")
+				}
+				return
+			}
+			var after struct {
+				Authenticated bool      `json:"authenticated"`
+				CSRF          string    `json:"csrf_token"`
+				Expires       time.Time `json:"expires_at"`
+			}
+			if err := json.NewDecoder(response.Body).Decode(&after); err != nil {
+				t.Fatal(err)
+			}
+			cookies := response.Cookies()
+			if len(cookies) != 1 || !after.Authenticated || after.CSRF == before.CSRF || cookies[0].Value == anonymous.Value {
+				t.Fatal("login did not authenticate and rotate session")
+			}
+			cookie := cookies[0]
+			if !cookie.HttpOnly || cookie.Path != "/" || cookie.SameSite != http.SameSiteStrictMode || cookie.Domain != "" {
+				t.Fatal("cookie protections lost")
+			}
+			lifetime := 8 * time.Hour
+			if tc.remember {
+				lifetime = 30 * 24 * time.Hour
+			}
+			if after.Expires.Before(earliest.Add(lifetime)) || after.Expires.After(time.Now().Add(lifetime)) {
+				t.Fatal("incorrect server session lifetime")
+			}
+			if tc.remember {
+				if cookie.Expires.Unix() != after.Expires.Unix() {
+					t.Fatal("persistent cookie and session expiry differ")
+				}
+			} else if !cookie.Expires.IsZero() || cookie.MaxAge != 0 {
+				t.Fatal("unchecked login persisted browser cookie")
+			}
+			restoredJar, err := cookiejar.New(nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.remember {
+				// A fresh client restores only a persistent cookie, without credentials.
+				endpoint, err := url.Parse(reader.URL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				restoredJar.SetCookies(endpoint, cookies)
+			}
+			restoredClient := &http.Client{Jar: restoredJar, Transport: client.Transport}
+			restored, _ := readSession(t, restoredClient, reader.URL)
+			if restored.Authenticated != tc.remember {
+				t.Fatal("browser restore did not follow remember choice")
+			}
+		})
 	}
 }

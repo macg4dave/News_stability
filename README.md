@@ -5,15 +5,19 @@ A focused web reader for an existing self-hosted **NewsBlur** server at
 NewsBlur remains responsible for feeds, stories, intelligence, and Daily Briefing
 generation. We present those capabilities through a simpler reading interface.
 
-The reader includes login/logout, server-side sessions, nested feeds, continuously loaded
-sanitized articles, automatic mark-read while scrolling, saved stories, feed
-search/unread filtering, themes and keyboard navigation. Daily Briefing presents
+The reader includes login with optional Remember me, server-side sessions and logout API support, nested feeds, continuously loaded
+sanitized articles, automatic mark-read while scrolling, All feeds and nested-folder
+reading, Focus intelligence filtering, NewsBlur like/dislike training, Warm paper typography controls and
+keyboard navigation. Search and saved-story features are intentionally absent. Daily Briefing presents
 NewsBlur summaries and source stories. Native/race, synthetic TLS, browser smoke,
 and isolated proxy checks cover these flows; installed acceptance remains open.
 The frontend uses native JavaScript/CSS with no bundling step.
 
-Cards and Magazine display lead pictures, and the article reader supports inline
-pictures. Use Appearance → Pictures to hide them across the reader. Images load
+Magazine composes consecutive stories into newspaper groups, using picture
+orientation and the amount of text. Photo leads sit beside stacked stories;
+portraits keep their proportions; substantial introductions flow into columns.
+Headlines balance naturally and paragraphs use browser-native hyphenation. Cards display lead pictures, and the article
+reader supports inline pictures. Use Appearance → Pictures to hide them across the reader. Images load
 through NewsBlur's signed image proxy when supplied, with direct HTTPS originals
 and other supplied images as bounded fallbacks. Relative `/imageproxy/...` URLs
 use an authenticated reader relay to the configured NewsBlur server; List prefers
@@ -45,27 +49,33 @@ also available for keyboard access. Refresh starts again at the newest batch.
 Scrolling past a story marks it read in NewsBlur; scrolling to the end of an
 opened article marks that article read. Only stories actually seen are included.
 Opening stories, changing layouts, and loading batches do not mark them read.
-Read/save buttons have been removed. Previously saved stories remain available
-through Saved stories. Failed read updates keep stories unread and pause further
+Explicit read buttons are absent. Failed read updates keep stories unread and pause further
 updates until Refresh; offline/background browsing does not send read updates.
 
 List and Magazine group consecutive publication days in your browser timezone;
 Cards show publication timestamps. Last refreshed records the last successful
-collection reload. Layout, font, theme and picture settings stay in your browser.
+collection reload. Layout, article font/size and picture settings stay in your browser. Warm paper is
+the only active palette during development; light/dark/system styles are
+[archived](docs/archive/README.md). Older theme choices migrate automatically.
 
 Milestones 1–5 are implemented. Local verification passes; installed-server,
 human accessibility, HTTPS/upgrade/rollback and distribution-license gates remain
 open in [release acceptance](docs/acceptance.md).
+
+Article thumbs send likes/dislikes to NewsBlur for the selected headline, author,
+or topic within that feed. Clear training removes that choice. Changes are shown
+only after confirmation; refresh to update Focus results. Focus contains unread
+stories with positive NewsBlur scores, using your existing training. Training
+persists on the server; button highlights track confirmations in this session.
 
 ## Documentation
 
 - [Architecture and project layout](docs/architecture.md)
 - [Development, configuration and debugging](docs/debugging.md)
 - [Installed acceptance checklist](docs/acceptance.md)
-- [Open-source reuse review](docs/open-source-reuse.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
-- [Roadmap and milestone acceptance](docs/roadmap.md)
-- [Blockers and unverified dependencies](docs/blockers.md)
+- [Reader UI roadmap](docs/ui-roadmap.md)
+- [Newspaper research and licence review](docs/newspaper-research.md)
 - [AI rule index](AGENTS.md)
 
 ## Native Go development
@@ -186,3 +196,8 @@ the full notices, and the Go container ships the license directory.
 Shiori (MIT) theme logic and Memos (MIT) paper colors/reference buckets add
 appearance controls and linked-reading presentation. Briefing summaries and
 related-story groupings are provided by NewsBlur; installed acceptance remains open.
+
+Remember me keeps this browser signed in for up to 30 days with an HttpOnly cookie.
+Unchecked logins use a browser-session cookie and an eight-hour maximum. Passwords
+are never saved by the reader. NewsBlur expiry and reader server restarts still
+require signing in again because upstream sessions remain in memory.

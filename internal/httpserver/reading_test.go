@@ -148,7 +148,6 @@ func TestStoryActionsForwardOnlyAllowedWrites(t *testing.T) {
 	})
 	for _, tc := range []struct{ action, path string }{
 		{"read", "/reader/mark_story_hashes_as_read"}, {"unread", "/reader/mark_story_hash_as_unread"},
-		{"save", "/reader/mark_story_hash_as_starred"}, {"unsave", "/reader/mark_story_hash_as_unstarred"},
 	} {
 		expectedPath = tc.path
 		response := authRequest(t, client, reader.URL, "/api/stories/1:abc123/state", csrf, `{"action":"`+tc.action+`"}`)
@@ -157,7 +156,7 @@ func TestStoryActionsForwardOnlyAllowedWrites(t *testing.T) {
 		}
 		io.Copy(io.Discard, response.Body)
 	}
-	if calls.Load() != 4 {
+	if calls.Load() != 2 {
 		t.Fatal("write retried or missing")
 	}
 	for _, tc := range []struct {
@@ -166,6 +165,8 @@ func TestStoryActionsForwardOnlyAllowedWrites(t *testing.T) {
 	}{
 		{"/api/stories/1:abc123/state", "wrong", `{"action":"read"}`, 403},
 		{"/api/stories/1:abc123/state", csrf, `{"action":"delete"}`, 400},
+		{"/api/stories/1:abc123/state", csrf, `{"action":"save"}`, 400},
+		{"/api/stories/1:abc123/state", csrf, `{"action":"unsave"}`, 400},
 		{"/api/stories/not-a-hash/state", csrf, `{"action":"read"}`, 400},
 		{"/api/stories/1:abc123/state", csrf, `{"action":"read","url":"https://other.invalid"}`, 400},
 		{"/api/stories/1:abc123/state", csrf, `{"action":"read"} {}`, 400},
@@ -175,7 +176,7 @@ func TestStoryActionsForwardOnlyAllowedWrites(t *testing.T) {
 			t.Errorf("invalid action HTTP %d, want %d", response.StatusCode, tc.status)
 		}
 	}
-	if calls.Load() != 4 {
+	if calls.Load() != 2 {
 		t.Fatal("invalid input reached upstream")
 	}
 }
@@ -220,12 +221,10 @@ func TestReadingPaginationSanitizationAndFilters(t *testing.T) {
 				fmt.Fprint(w, `{"stories":[],"hidden_stories_count":2}`)
 				return
 			}
-			if r.URL.Query().Get("read_filter") != "unread" || r.URL.Query().Get("query") != "cats & dogs" {
-				t.Error("filter/search not forwarded")
+			if r.URL.Query().Get("read_filter") != "unread" || r.URL.Query().Has("query") {
+				t.Error("unexpected reading parameters")
 			}
 			fmt.Fprint(w, `{"stories":[{"story_hash":"1:abc","story_title":"Synthetic","story_content":"<p>Readable</p><script>unsafe()</script><img src='https://tracker.invalid'>","story_permalink":"javascript:bad","read_status":0}]}`)
-		case "/reader/starred_stories":
-			fmt.Fprint(w, `{"stories":[]}`)
 		default:
 			t.Errorf("unexpected read %s", r.URL.Path)
 			w.WriteHeader(404)
@@ -236,8 +235,8 @@ func TestReadingPaginationSanitizationAndFilters(t *testing.T) {
 		more  bool
 		count int
 	}{
-		{"/api/feeds/1/stories?read_filter=unread&query=cats+%26+dogs", true, 1},
-		{"/api/feeds/1/stories?page=2", true, 0}, {"/api/saved?page=1", false, 0},
+		{"/api/feeds/1/stories?read_filter=unread", true, 1},
+		{"/api/feeds/1/stories?page=2", true, 0},
 	} {
 		response, err := client.Get(reader.URL + tc.path)
 		if err != nil {

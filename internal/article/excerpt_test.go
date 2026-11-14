@@ -12,8 +12,9 @@ func TestExcerptOfSanitizedContent(t *testing.T) {
 		{"inline and blocks", "<p>A <em>read</em>er &amp; friend.</p><p>Next\n\t paragraph.</p>", "A reader & friend. Next paragraph."},
 		{"text resembling markup", "<p>&lt;img src=x onerror=bad&gt;</p>", "<img src=x onerror=bad>"},
 		{"hostile content", `<script>secret()</script><img src="https://tracker.invalid/pixel"><p>Visible text.</p>`, "Visible text."},
-		{"unicode boundary", strings.Repeat("界", 241), strings.Repeat("界", 239) + "…"},
-		{"exact limit", strings.Repeat("é", 240), strings.Repeat("é", 240)},
+		{"unicode boundary", strings.Repeat("界", 1201), strings.Repeat("界", 1199) + "…"},
+		{"exact limit", strings.Repeat("é", 1200), strings.Repeat("é", 1200)},
+		{"word boundary", strings.Repeat("a", 1190) + " " + strings.Repeat("b", 20), strings.Repeat("a", 1190) + "…"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := Excerpt(New().HTML(tc.input))

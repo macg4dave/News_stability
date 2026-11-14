@@ -1,4 +1,4 @@
-// Package session owns short-lived, in-memory reader sessions.
+// Package session owns bounded, in-memory reader sessions.
 package session
 
 import (
@@ -13,6 +13,7 @@ import (
 const (
 	anonymousTTL     = 15 * time.Minute
 	authenticatedTTL = 8 * time.Hour
+	rememberedTTL    = 30 * 24 * time.Hour
 )
 
 // ErrFull means the reader cannot accept another session at present.
@@ -23,6 +24,7 @@ type Entry struct {
 	ID       string
 	CSRF     string
 	Username string
+	Remember bool
 	Expires  time.Time
 	Client   *newsblur.Client
 }
@@ -69,15 +71,19 @@ func (s *Store) Create() (Entry, error) {
 }
 
 // Authenticate replaces an anonymous session, rotating both session ID and CSRF
-// token. A stale or concurrently replaced login cannot resurrect an old session.
-func (s *Store) Authenticate(id, username string, client *newsblur.Client) (Entry, bool) {
+// token. Remembered sessions have a 30-day absolute lifetime. A stale or concurrently replaced login cannot resurrect an old session.
+func (s *Store) Authenticate(id, username string, client *newsblur.Client, remember bool) (Entry, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	old, ok := s.entries[id]
 	if !ok || !time.Now().Before(old.Expires) || old.Client != nil || client == nil {
 		return Entry{}, false
 	}
-	e := Entry{ID: rand.Text(), CSRF: rand.Text(), Username: username, Client: client, Expires: time.Now().Add(authenticatedTTL)}
+	lifetime := authenticatedTTL
+	if remember {
+		lifetime = rememberedTTL
+	}
+	e := Entry{ID: rand.Text(), CSRF: rand.Text(), Username: username, Client: client, Remember: remember, Expires: time.Now().Add(lifetime)}
 	delete(s.entries, id)
 	s.entries[e.ID] = e
 	return e, true

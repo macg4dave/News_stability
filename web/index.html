@@ -1,22 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="paper">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="light">
   <title>News Stability</title>
   <link rel="stylesheet" href="/reader.css">
   <link rel="stylesheet" href="/themes.css">
+  <link rel="stylesheet" href="/newspaper.css">
   <script type="module" src="/reader.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to reading</a>
-  <header class="masthead">
-    <a class="brand" href="/">News <strong>Stability</strong></a>
-    <span class="tagline">A quieter place to read</span>
-    <button id="show-appearance" class="icon-button" aria-label="Appearance" title="Appearance" type="button" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-1.7-1.5-2.4-2.7-1.7l-1 .6c-1.2.7-2.6-.4-2.2-1.7l.4-1.3C16.2 5.4 14.6 3 12 3Z"/><path d="M7.5 10h.01M10 6.5h.01M6.5 14h.01"/></svg></button>
-    <div id="account" hidden><span id="username"></span><button id="show-shortcuts" class="icon-button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts" type="button" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 9h.01M12 9h.01M17 9h.01M7 12h.01M12 12h.01M17 12h.01M8 15h8"/></svg></button><button id="logout" class="icon-button" aria-label="Sign out" title="Sign out" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4H5v16h4M13 8l4 4-4 4M9 12h12"/></svg></button></div>
-  </header>
   <main id="main" tabindex="-1">
     <section id="signin" class="signin" aria-labelledby="signin-heading">
       <p class="eyebrow">YOUR NEWS, AT YOUR PACE</p>
@@ -27,6 +22,8 @@
         <input id="login-username" name="username" autocomplete="username" required maxlength="256">
         <label for="login-password">Password</label>
         <input id="login-password" name="password" type="password" autocomplete="current-password" maxlength="4096">
+        <label class="remember-login" for="login-remember"><input id="login-remember" name="remember_me" type="checkbox" aria-describedby="remember-help">Remember me</label>
+        <p id="remember-help" class="muted">Keep this browser signed in for up to 30 days.</p>
         <button id="login-submit" type="submit" disabled>Sign in</button>
       </form>
       <p id="login-status" role="status" aria-live="polite">Connecting to the reader...</p>
@@ -34,10 +31,11 @@
       <p class="muted">Your feeds and reading history stay with NewsBlur.</p>
     </section>
     <section id="reader" class="reader" aria-label="News reader" hidden>
-      <aside class="subscriptions" aria-labelledby="feeds-heading">
-        <div class="panel-heading"><h2 id="feeds-heading">Your feeds</h2><button id="refresh" class="icon-button" aria-label="Refresh" title="Refresh" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1"/></svg></button></div>
+      <aside class="subscriptions" aria-label="Feed subscriptions">
+        <div class="panel-heading sidebar-tools" role="group" aria-label="Reader controls"><button id="refresh" class="icon-button" aria-label="Refresh" title="Refresh" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1"/></svg></button><button id="show-appearance" class="icon-button" aria-label="Appearance" title="Appearance" type="button" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-1.7-1.5-2.4-2.7-1.7l-1 .6c-1.2.7-2.6-.4-2.2-1.7l.4-1.3C16.2 5.4 14.6 3 12 3Z"/><path d="M7.5 10h.01M10 6.5h.01M6.5 14h.01"/></svg></button><button id="show-shortcuts" class="icon-button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts" type="button" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 9h.01M12 9h.01M17 9h.01M7 12h.01M12 12h.01M17 12h.01M8 15h8"/></svg></button></div>
+        <button id="all-feeds" class="briefing-link" type="button">All feeds</button>
+        <button id="focus-stories" class="briefing-link" type="button">Focus <span class="count" id="focus-count"></span></button>
         <button id="daily-briefing" class="briefing-link" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h3M8 18h8"/></svg><span>Daily Briefing</span></button>
-        <button id="saved-stories" class="briefing-link" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12v17l-6-4-6 4Z"/></svg><span>Saved stories</span></button>
         <p id="feed-status" class="panel-status" role="status"></p>
         <nav id="feed-tree" aria-label="Feed folders"></nav>
       </aside>
@@ -50,10 +48,7 @@
         </div>
         <form id="story-filters" class="story-filters" hidden>
           <label for="read-filter">Show</label>
-          <select id="read-filter"><option value="all">All stories</option><option value="unread">Unread stories</option></select>
-          <label for="story-query">Search this feed</label>
-          <input id="story-query" type="search" maxlength="256" placeholder="Search this feed (Enter)">
-          <button id="clear-search" class="icon-button" type="button" aria-label="Clear search" title="Clear search" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+          <select id="read-filter"><option value="all">All stories</option><option value="unread">Unread stories</option><option value="focus">Focus stories</option></select>
         </form>
         <p id="story-status" class="panel-status" role="status">Your latest stories will appear here.</p>
           <p id="collection-updated" class="panel-status" hidden></p>
@@ -70,19 +65,29 @@
         <p id="article-meta" class="muted">Choose a feed, then a story to start reading.</p>
         <p id="article-status" role="status" hidden></p>
         <p id="full-text-status" class="muted" role="status" hidden></p>
+        <div id="feedback" class="feedback" hidden>
+          <label for="training-target">Train NewsBlur on</label>
+          <select id="training-target" aria-describedby="training-help"></select>
+          <button id="like-story" class="icon-button" type="button" aria-label="Like selected choice" title="Like this choice in NewsBlur"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M7 10v11H3V10Zm0 1 5-8c2 0 3 1 2 4l-1 3h6a2 2 0 0 1 2 2l-2 7a3 3 0 0 1-3 2H7"/></svg></button>
+          <button id="dislike-story" class="icon-button" type="button" aria-label="Dislike selected choice" title="Dislike this choice in NewsBlur"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M7 14V3H3v11Zm0-1 5 8c2 0 3-1 2-4l-1-3h6a2 2 0 0 0 2-2l-2-7a3 3 0 0 0-3-2H7"/></svg></button>
+          <button id="clear-training" type="button">Clear training</button>
+          <p id="training-help" class="muted">Applies to matching stories in this feed. Refresh to see updated Focus results.</p>
+          <p id="feedback-status" role="status"></p>
+        </div>
         <a id="original" target="_blank" rel="noopener noreferrer" hidden>Read the original</a>
           <div id="article-content" class="article-content" dir="auto"></div>
         <section id="connections" class="connections" aria-label="Linked stories" hidden></section>
+        <div id="story-return" class="story-return" hidden>
+          <button id="back-to-previous" type="button"><svg class="icon collapse-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 11 6-6 6 6M6 19l6-6 6 6"/></svg><span>Back to previous page</span></button>
+        </div>
       </article>
     </section>
     <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
   </main>
   <dialog id="appearance" aria-labelledby="appearance-heading">
     <h2 id="appearance-heading">Reading appearance</h2>
-    <p class="muted">Choose a comfortable background and article text. Saved only on this browser.</p>
+    <p class="muted">Warm paper. Choose your article font and text size. Preferences stay on this browser.</p>
     <div class="appearance-controls">
-      <label for="appearance-theme">Background</label>
-      <select id="appearance-theme"><option value="system">Follow system</option><option value="light">Light</option><option value="paper">Warm paper</option><option value="dark">Dark</option></select>
       <label for="appearance-font">Article font</label>
       <select id="appearance-font"><option value="serif">Serif</option><option value="sans">Sans serif</option></select>
       <label for="appearance-size">Article text size</label>

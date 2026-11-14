@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 // ErrSessionExpired means the upstream no longer recognizes the cookie session.
@@ -114,4 +115,49 @@ func decodeFolders(values []json.RawMessage, depth int) ([]Folder, error) {
 		}
 	}
 	return folders, nil
+}
+
+// CollectionFeedIDs resolves all subscriptions or a folder index path against
+// this navigation snapshot. Repeated feeds and stale unsubscribed IDs are omitted.
+func (nav Navigation) CollectionFeedIDs(path, title string) ([]int, error) {
+	ids := make([]int, 0, len(nav.Feeds))
+	if path == "" {
+		for _, feed := range nav.Feeds {
+			ids = append(ids, feed.ID)
+		}
+		return ids, nil
+	}
+	nodes := nav.Folders
+	var chosen Folder
+	parts := strings.Split(path, "/")
+	if len(parts) > 32 {
+		return nil, ErrInvalidResponse
+	}
+	for _, part := range parts {
+		index, err := strconv.Atoi(part)
+		if err != nil || index < 0 || index >= len(nodes) || nodes[index].FeedID != 0 {
+			return nil, ErrInvalidResponse
+		}
+		chosen = nodes[index]
+		nodes = chosen.Children
+	}
+	if chosen.Title != title {
+		return nil, ErrInvalidResponse
+	}
+	allowed := make(map[int]bool, len(nav.Feeds))
+	for _, feed := range nav.Feeds {
+		allowed[feed.ID] = true
+	}
+	var collect func([]Folder)
+	collect = func(nodes []Folder) {
+		for _, node := range nodes {
+			if node.FeedID != 0 && allowed[node.FeedID] {
+				ids = append(ids, node.FeedID)
+				delete(allowed, node.FeedID)
+			}
+			collect(node.Children)
+		}
+	}
+	collect(chosen.Children)
+	return ids, nil
 }

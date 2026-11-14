@@ -39,8 +39,12 @@ func (a *Auth) cookieName() string {
 }
 
 func (a *Auth) cookie(w http.ResponseWriter, e session.Entry) {
-	http.SetCookie(w, &http.Cookie{Name: a.cookieName(), Value: e.ID, Path: "/", Secure: a.secure,
-		HttpOnly: true, SameSite: http.SameSiteStrictMode, Expires: e.Expires})
+	cookie := &http.Cookie{Name: a.cookieName(), Value: e.ID, Path: "/", Secure: a.secure,
+		HttpOnly: true, SameSite: http.SameSiteStrictMode}
+	if e.Remember {
+		cookie.Expires = e.Expires
+	}
+	http.SetCookie(w, cookie)
 }
 
 func (a *Auth) clearCookie(w http.ResponseWriter) {
@@ -133,6 +137,7 @@ func (a *Auth) login(w http.ResponseWriter, r *http.Request) {
 	var credentials struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
+		Remember bool   `json:"remember_me"`
 	}
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
@@ -174,7 +179,7 @@ func (a *Auth) login(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusBadGateway, "invalid_upstream_session", "NewsBlur did not establish a session.")
 		return
 	}
-	next, ok := a.store.Authenticate(e.ID, credentials.Username, client)
+	next, ok := a.store.Authenticate(e.ID, credentials.Username, client, credentials.Remember)
 	if !ok {
 		// An overlapping logout/login invalidated the anonymous session. Do not
 		// expose the orphan upstream session to a different browser session.

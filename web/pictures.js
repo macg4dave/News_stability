@@ -76,6 +76,21 @@ export function initializePictures() {
         image.referrerPolicy = "no-referrer";
         image.loading = "lazy";
         image.decoding = "async";
+        image.addEventListener("load", () => {
+          const small = image.naturalWidth < 100 || image.naturalHeight < 80;
+          image.dataset.smallPicture = String(small);
+          // Try the remaining NewsBlur-supplied candidates before accepting a
+          // thumbnail. Never guess a URL or fetch a publisher page.
+          const sources = JSON.parse(image.dataset.selection);
+          const next = Number(image.dataset.candidateIndex) + 1;
+          if (small && reader.dataset.layout !== "list" && next < sources.length) {
+            image.dataset.candidateIndex = String(next);
+            image.src = sources[next];
+            return;
+          }
+          frame.classList.toggle("small-picture", small);
+          reader.dispatchEvent(new Event("pictureschange"));
+        });
         image.addEventListener("error", () => {
           if (!image.hasAttribute("src")) return;
           const sources = JSON.parse(image.dataset.selection);
@@ -88,6 +103,7 @@ export function initializePictures() {
           image.dataset.failed = "true";
           image.hidden = true;
           frame.querySelector(".picture-fallback").hidden = false;
+          reader.dispatchEvent(new Event("pictureschange"));
         });
       }
       if (!visible) image.removeAttribute("src");
@@ -98,6 +114,7 @@ export function initializePictures() {
   control.addEventListener("change", () => {
     if (!["show", "hide"].includes(control.value)) return;
     refresh();
+    reader.dispatchEvent(new Event("pictureschange"));
     try { localStorage.setItem(storageKey, control.value); } catch { /* Tab-local choice. */ }
   });
   // Refresh image visibility before layout.js restores its story scroll anchor.

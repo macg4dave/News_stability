@@ -34,10 +34,6 @@ func (c *Client) SetStoryState(ctx context.Context, hash, action string) error {
 		path = "/reader/mark_story_hashes_as_read"
 	case "unread":
 		path = "/reader/mark_story_hash_as_unread"
-	case "save":
-		path = "/reader/mark_story_hash_as_starred"
-	case "unsave":
-		path = "/reader/mark_story_hash_as_unstarred"
 	default:
 		return ErrInvalidResponse
 	}

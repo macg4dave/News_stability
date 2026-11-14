@@ -30,7 +30,7 @@ func (a *Auth) storyState(w http.ResponseWriter, r *http.Request) {
 	decoder.DisallowUnknownFields()
 	hash := r.PathValue("hash")
 	if decoder.Decode(&input) != nil || decoder.Decode(&struct{}{}) != io.EOF || !newsblur.ValidStoryHash(hash) ||
-		(input.Action != "read" && input.Action != "unread" && input.Action != "save" && input.Action != "unsave") {
+		(input.Action != "read" && input.Action != "unread") {
 		apiError(w, http.StatusBadRequest, "invalid_request", "Choose a valid story action.")
 		return
 	}
