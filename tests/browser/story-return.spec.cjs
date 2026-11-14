@@ -5,7 +5,7 @@ for (const layout of ['cards', 'magazine', 'list']) {
   test(`${layout}: bottom return closes the story and restores its headline without marking it read`, async ({ page }) => {
     const model = await fixture(page);
     model.fullTexts['1:abc'] = '<p>A long synthetic article for returning from the end.</p>'.repeat(70);
-    await page.getByLabel('Story layout', { exact: true }).selectOption(layout);
+    await page.locator(`[data-layout-choice="${layout}"]`).click();
     await page.getByRole('button', { name: 'Synthetic feed' }).click();
     const origin = page.locator('#stories .story').first();
     await origin.click();

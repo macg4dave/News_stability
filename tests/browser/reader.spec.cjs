@@ -100,7 +100,8 @@ test("keyboard navigation pauses in inputs and appearance survives reload", asyn
   await page.getByLabel("Show", { exact: true }).focus();
   await page.keyboard.press("k");
   await expect(page.locator("#article-title")).toHaveText("Second synthetic story");
-  await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await page.locator("#main").focus();
+  await page.keyboard.press("a");
   await page.getByLabel("Article text size", { exact: true }).selectOption("large");
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "paper");
@@ -115,7 +116,8 @@ test("Warm paper overrides legacy themes and system dark mode while retaining ty
   await fixture(page);
   await expect(page.locator("html")).toHaveAttribute("data-theme", "paper");
   expect(await page.locator("html").evaluate(node => ({ background: getComputedStyle(node).backgroundColor, scheme: getComputedStyle(node).colorScheme }))).toEqual({ background: "rgb(245, 237, 228)", scheme: "light" });
-  await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await page.locator("#main").focus();
+  await page.keyboard.press("a");
   await expect(page.getByLabel("Background", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Article font", { exact: true })).toHaveValue("sans");
   await expect(page.getByLabel("Article text size", { exact: true })).toHaveValue("large");
@@ -143,7 +145,8 @@ test("desktop reading and dialogs fit the viewport", async ({ page }) => {
   await fixture(page);
   await openStory(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole("button", { name: "Keyboard shortcuts", exact: true }).click();
+  await page.locator("#main").focus();
+  await page.keyboard.press("?");
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toBeHidden();
@@ -181,7 +184,7 @@ test("layouts preserve stories, selection, filters and request state", async ({ 
   const original = await page.locator("#stories .story").evaluateAll(nodes => nodes.map(node => node.dataset.hash));
   await page.locator("#stories .story").first().evaluate(node => { window.originalStoryNode = node; });
   for (const layout of ["magazine", "list", "cards"]) {
-    await page.getByLabel("Story layout", { exact: true }).selectOption(layout);
+    await page.locator(`[data-layout-choice="${layout}"]`).click();
     await expect(page.locator("#reader")).toHaveAttribute("data-layout", layout);
     await expect(page.locator("#article-title")).toHaveText("Synthetic story");
     await expect(page.locator('#stories .story[aria-current="true"]')).toHaveCount(1);
@@ -194,9 +197,9 @@ test("layouts preserve stories, selection, filters and request state", async ({ 
   await page.locator("#stories .story").first().click();
   await expect(page.getByRole("button", { name: "Save story", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Back to stories", exact: true }).click();
-  await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+  await page.locator(`[data-layout-choice="${"magazine"}"]`).click();
   await page.reload();
-  await expect(page.getByLabel("Story layout", { exact: true })).toHaveValue("magazine");
+  await expect(page.locator("#reader")).toHaveAttribute("data-layout", "magazine");
   await page.getByRole("button", { name: "All feeds", exact: true }).click();
   await expect(page.locator("#stories")).toContainText("Synthetic story");
   await expect(page.locator("#reader")).toHaveAttribute("data-layout", "magazine");
@@ -205,11 +208,11 @@ test("layouts preserve stories, selection, filters and request state", async ({ 
 test("invalid or unavailable layout storage keeps controls usable", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("news-stability-layout-v1", "unknown"));
   await fixture(page);
-  await expect(page.getByLabel("Story layout", { exact: true })).toHaveValue("cards");
+  await expect(page.locator("#reader")).toHaveAttribute("data-layout", "cards");
   await page.evaluate(() => {
     Storage.prototype.setItem = () => { throw new Error("Storage disabled"); };
   });
-  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.locator(`[data-layout-choice="${"list"}"]`).click();
   await expect(page.locator("#reader")).toHaveAttribute("data-layout", "list");
 });
 
@@ -220,7 +223,7 @@ test("all layouts fit a smaller desktop window with long titles", async ({ page 
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
   for (const layout of ["cards", "magazine", "list"]) {
-    await page.getByLabel("Story layout", { exact: true }).selectOption(layout);
+    await page.locator(`[data-layout-choice="${layout}"]`).click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
 });
@@ -235,7 +238,7 @@ test("excerpts are inert text and disappear in compact List", async ({ page }) =
   await expect(page.locator("#stories .story-excerpt")).toContainText("<img");
   await expect(page.locator("#stories img")).toHaveCount(0);
   for (const layout of ["magazine", "list", "cards"]) {
-    await page.getByLabel("Story layout", { exact: true }).selectOption(layout);
+    await page.locator(`[data-layout-choice="${layout}"]`).click();
     if (layout === "list") await expect(page.locator("#stories .story-excerpt")).toBeHidden();
     else await expect(page.locator("#stories .story-excerpt")).toBeVisible();
   }
@@ -246,7 +249,7 @@ test("article return restores origin after linked coverage and preserves layout"
   const model = await fixture(page);
   model.stories.push(...Array.from({ length: 10 }, (_, i) => story(`1:extra${i}`, `Additional story ${i}`)));
   model.stories[0].related = [{ hash: "1:linked", title: "Read related coverage" }];
-  await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+  await page.locator(`[data-layout-choice="${"magazine"}"]`).click();
   await openStory(page);
   await page.getByRole("button", { name: "Read related coverage", exact: true }).click();
   await expect(page.locator("#article-title")).toHaveText("Linked synthetic story");
@@ -299,10 +302,11 @@ test("hidden pictures avoid requests in List and Cards; preference survives relo
   await expect(page.locator("#stories .story")).toHaveCount(2);
   await expect(page.locator("#stories img")).not.toHaveAttribute("src");
   expect(requests).toBe(0);
-  await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await page.locator("#main").focus();
+  await page.keyboard.press("a");
   await page.getByLabel("Pictures", { exact: true }).selectOption("hide");
   await page.getByRole("button", { name: "Done", exact: true }).click();
-  await page.getByLabel("Story layout", { exact: true }).selectOption("cards");
+  await page.locator(`[data-layout-choice="${"cards"}"]`).click();
   await expect(page.locator("#stories .story-picture")).toBeHidden();
   await expect(page.locator("#stories img")).not.toHaveAttribute("src");
   expect(requests).toBe(0);
@@ -311,7 +315,8 @@ test("hidden pictures avoid requests in List and Cards; preference survives relo
   await expect(page.locator("#article-content img")).not.toHaveAttribute("src");
   expect(requests).toBe(0);
   await page.reload();
-  await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await page.locator("#main").focus();
+  await page.keyboard.press("a");
   await expect(page.getByLabel("Pictures", { exact: true })).toHaveValue("hide");
 });
 
@@ -319,7 +324,7 @@ test("List shows compact thumbnails beside headlines on desktop window sizes", a
   const model = await fixture(page);
   model.stories[0].picture = "https://images.invalid/photo.png";
   await page.route("https://images.invalid/**", route => route.fulfill({ contentType: "image/png", body: pixelPNG }));
-  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.locator(`[data-layout-choice="${"list"}"]`).click();
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
   const image = page.locator("#stories .story-picture img");
@@ -351,7 +356,7 @@ test("browser-blocked pictures show a fallback without retrying", async ({ page 
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
   await expect(page.locator("#stories .picture-fallback")).toBeVisible();
-  await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+  await page.locator(`[data-layout-choice="${"magazine"}"]`).click();
   expect(attempts).toBe(1);
   await expect(page.locator("#stories img")).not.toHaveAttribute("crossorigin");
 });
@@ -367,7 +372,7 @@ test("failed and unsafe pictures retain readable stories without credentialed re
   await expect(page.locator("#stories .picture-fallback")).toBeVisible();
   await expect(page.locator("#stories .story").first()).toContainText("Synthetic story");
   await expect(page.locator("#stories .story").nth(1).locator("img")).toHaveCount(0);
-  await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+  await page.locator(`[data-layout-choice="${"magazine"}"]`).click();
   expect(attempts).toBe(1);
   model.stories[0].picture = "http://127.0.0.1:4173/api/session";
   await page.getByRole("button", { name: "Refresh", exact: true }).click();
@@ -422,7 +427,7 @@ for (const layout of ["cards", "magazine"]) {
   test(`${layout} opens a focused article and restores the collection on desktop window sizes`, async ({ page }) => {
     const model = await fixture(page);
     model.stories.push(...Array.from({ length: 28 }, (_, i) => story(`1:focus${i}`, `Reading story ${i}`)));
-    await page.getByLabel("Story layout", { exact: true }).selectOption(layout);
+    await page.locator(`[data-layout-choice="${layout}"]`).click();
     await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
     const target = page.locator("#stories .story").nth(8);
@@ -446,7 +451,7 @@ for (const layout of ["cards", "magazine"]) {
       await expect(page.locator("#article")).toBeHidden();
       await expect(target).toBeFocused();
       expect(Math.abs(await page.evaluate(() => scrollY) - position)).toBeLessThan(3);
-      await expect(page.getByLabel("Story layout", { exact: true })).toHaveValue(layout);
+      await expect(page.locator("#reader")).toHaveAttribute("data-layout", layout);
     }
     expect(model.actions).toEqual([]);
     expect(model.reads).toHaveLength(1);
@@ -458,7 +463,7 @@ for (const width of [1440, 1024]) {
     await page.setViewportSize({ width, height: 900 });
     const model = await fixture(page);
     model.stories.push(...Array.from({ length: 20 }, (_, i) => story(`1:inline${i}`, `Inline story ${i}`)));
-    await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+    await page.locator(`[data-layout-choice="${"list"}"]`).click();
     await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
     const row = page.locator("#stories > li").nth(8);
@@ -474,12 +479,12 @@ for (const width of [1440, 1024]) {
     await expect(page.getByRole("button", { name: "Save story", exact: true })).toHaveCount(0);
     await expect(row.locator("#article")).toBeVisible();
     await expect(page.locator("#article")).toHaveCount(1);
-    await page.getByLabel("Story layout", { exact: true }).selectOption("cards");
+    await page.locator(`[data-layout-choice="${"cards"}"]`).click();
     await expect(page.locator(".story-list")).toBeHidden();
     await expect(page.locator("#reader > #article")).toBeVisible();
     // The layout control is hidden during focused reading; change it through
     // the existing control to verify the transition back without losing state.
-    await page.locator("#story-layout").selectOption("list", { force: true });
+    await page.locator(`[data-layout-choice="${"list"}"]`).click();
     await expect(row.locator("#article")).toBeVisible();
     await expect(page.getByRole("button", { name: "Save story", exact: true })).toHaveCount(0);
     await next.locator(".story").click();
@@ -504,7 +509,7 @@ test("scrolling appends unique stories through the final batch", async ({ page }
   model.stories = Array.from({ length: 30 }, (_, i) => story(`1:batch${i}`, `Story ${i}`));
   model.hasMore = true;
   model.pages[2] = { stories: [model.stories[29], ...Array.from({ length: 10 }, (_, i) => story(`1:later${i}`, `Later story ${i}`))], page: 2, can_continue: true };
-  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.locator(`[data-layout-choice="${"list"}"]`).click();
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
   await expect(page.locator("#stories > li")).toHaveCount(30);
@@ -530,7 +535,7 @@ test("loading more preserves inline article DOM, focus and scroll with one reque
     await blocked;
     await route.fulfill({ contentType: "application/json", body: JSON.stringify({ stories: [story("1:append", "Appended story")], page: 2, can_continue: false }) });
   });
-  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.locator(`[data-layout-choice="${"list"}"]`).click();
   await openStory(page);
   await page.locator("#back-to-stories").focus();
   await page.evaluate(() => { window.originalArticle = document.querySelector("#article"); window.originalRow = document.querySelector("#stories > li"); });
@@ -603,7 +608,7 @@ test("automatic loading pauses offline and resumes when the connection returns",
   const model = await fixture(page);
   model.stories = Array.from({ length: 30 }, (_, i) => story(`1:offline${i}`, `Offline fixture ${i}`));
   model.hasMore = true;
-  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.locator(`[data-layout-choice="${"list"}"]`).click();
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
   await expect(page.locator("#stories > li")).toHaveCount(30);
@@ -626,7 +631,7 @@ test.describe("publication dates", () => {
     model.stories = [dated("1:first", "2024-01-02T00:30:00Z"), dated("1:second", "2024-01-01T15:00:00Z")];
     model.hasMore = true;
     model.pages[2] = { page: 2, can_continue: false, stories: [dated("1:third", "2024-01-02T07:00:00Z"), dated("1:fourth", "2024-01-02T09:00:00Z"), { ...story("1:unknown"), date: "2024-01-02 12:00:00" }, dated("1:older", "2024-01-01T15:00:00Z")] };
-    await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+    await page.locator(`[data-layout-choice="${"list"}"]`).click();
     await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
     await expect(page.locator("#stories .story")).toHaveCount(6);
@@ -658,7 +663,8 @@ test("refresh status records success, survives errors, and clears on session exp
 
 test("Warm paper has readable text and usable control targets", async ({ page }) => {
   await fixture(page);
-  await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await page.locator("#main").focus();
+  await page.keyboard.press("a");
   await expect(page.getByLabel("Background", { exact: true })).toHaveCount(0);
   await expect(page.locator("html")).toHaveAttribute("data-theme", "paper");
   await page.getByRole("button", { name: "Done", exact: true }).click();
@@ -695,7 +701,7 @@ test("large text and reduced motion retain reading and dialog controls on deskto
   const model = await fixture(page);
   model.stories[0].title = "قراءة الأخبار بهدوء — とても長い見出しと読みやすい本文";
   await page.addStyleTag({ content: ":root { font-size:32px; }" });
-  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.locator(`[data-layout-choice="${"list"}"]`).click();
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
   await page.locator("#stories .story").first().click();
@@ -703,7 +709,8 @@ test("large text and reduced motion retain reading and dialog controls on deskto
   const overflow = await page.evaluate(() => [...document.querySelectorAll("body *")].filter(node => node.getBoundingClientRect().right > innerWidth + 1).map(node => ({ tag: node.tagName, id: node.id, class: node.className, width: node.getBoundingClientRect().width })).slice(0, 20));
   expect(overflow).toEqual([]);
   expect(await page.locator("#back-to-stories").evaluate(node => getComputedStyle(node).transitionDuration)).toBe("0s");
-  await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await page.locator("#main").focus();
+  await page.keyboard.press("a");
   await expect(page.getByRole("button", { name: "Done", exact: true })).toBeVisible();
   expect(await page.getByRole("dialog").evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
   await page.keyboard.press("Escape");
@@ -715,7 +722,7 @@ for (const layout of ["cards", "magazine", "list"]) {
   test(`${layout}: scrolling past seen stories confirms read without removing rows`, async ({ page }) => {
     const model = await fixture(page);
     model.stories = Array.from({ length: 30 }, (_, i) => story(`1:scroll${i}`, `Scroll story ${i}`));
-    await page.getByLabel("Story layout", { exact: true }).selectOption(layout);
+    await page.locator(`[data-layout-choice="${layout}"]`).click();
     await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
     await expect(page.locator("#stories .story")).toHaveCount(30);
@@ -737,7 +744,7 @@ for (const layout of ["cards", "magazine", "list"]) {
 test("automatic read pauses offline and in hidden tabs, and skips briefing summaries", async ({ page, context }) => {
   const model = await fixture(page);
   model.stories = Array.from({ length: 30 }, (_, i) => ({ ...story(`1:pause${i}`, `Pause story ${i}`), ...(i === 0 ? { kind: "briefing_summary" } : {}) }));
-  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.locator(`[data-layout-choice="${"list"}"]`).click();
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
   await page.locator("#stories .story").first().scrollIntoViewIfNeeded();
@@ -772,7 +779,7 @@ test("scroll read serializes writes and rejects a late confirmation after sessio
     await gate;
     await route.fulfill({ contentType: "application/json", body: '{"action":"read"}' }).catch(() => {});
   });
-  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.locator(`[data-layout-choice="${"list"}"]`).click();
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
   await page.locator("#stories .story").first().scrollIntoViewIfNeeded();
@@ -790,7 +797,7 @@ test("scroll read serializes writes and rejects a late confirmation after sessio
 test("keyboard scrolling marks passed stories read without saving them", async ({ page }) => {
   const model = await fixture(page);
   model.stories = Array.from({ length: 30 }, (_, i) => story(`1:keyboard${i}`, `Keyboard story ${i}`));
-  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.locator(`[data-layout-choice="${"list"}"]`).click();
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
   await page.locator("#stories .story").first().focus();
@@ -818,7 +825,7 @@ test("unread continuation restarts its scan after read writes without replacing 
   // including when the toolbar and rows use a more compact presentation.
   model.stories = Array.from({ length: 60 }, (_, i) => story(`1:unread${i}`, `Unread story ${i}`));
   model.hasMore = true;
-  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.locator(`[data-layout-choice="${"list"}"]`).click();
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
   await page.getByLabel("Show", { exact: true }).selectOption("unread");
@@ -854,7 +861,7 @@ for (const layout of ["cards", "magazine", "list"]) {
     const model = await fixture(page);
     model.stories[1].read = true;
     model.fullTexts["1:abc"] = "<p>A long synthetic article.</p>".repeat(60);
-    await page.getByLabel("Story layout", { exact: true }).selectOption(layout);
+    await page.locator(`[data-layout-choice="${layout}"]`).click();
     await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
     const indicator = page.locator("#stories .story").first().locator(".read-indicator");
@@ -885,13 +892,13 @@ test("List uses NewsBlur thumbnails and switches to the full image for Cards", a
     paths.push(new URL(route.request().url()).searchParams.get("path"));
     return route.fulfill({ contentType: "image/png", body: pixelPNG });
   });
-  await page.getByLabel("Story layout", { exact: true }).selectOption("list");
+  await page.locator(`[data-layout-choice="${"list"}"]`).click();
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
   const image = page.locator("#stories .story-picture img");
   await expect.poll(() => image.evaluate(node => node.naturalWidth)).toBeGreaterThan(0);
   expect(paths).toEqual([signedImagePath.replace("/sc,", "/192,sc,")]);
-  await page.getByLabel("Story layout", { exact: true }).selectOption("cards");
+  await page.locator(`[data-layout-choice="${"cards"}"]`).click();
   await expect.poll(() => paths.length).toBe(2);
   expect(paths[1]).toBe(signedImagePath);
   await expect(image).toHaveAttribute("src", /api\/newsblur-picture/);
@@ -1031,7 +1038,7 @@ for (const width of [1024, 1440]) {
     const model = await fixture(page);
     model.stories = Array.from({ length: 6 }, (_, i) => ({ ...story(`1:paper${i}`, `Newspaper story ${i}`), published_at: "2026-11-13T12:00:00Z", excerpt: "A substantial introduction to this story. ".repeat(5), ...(i < 2 ? { picture: "https://fixture.invalid/photo.png" } : {}) }));
     await page.route("https://fixture.invalid/photo.png", route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400"><rect width="640" height="400" fill="#987"/></svg>' }));
-    await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+    await page.locator(`[data-layout-choice="${"magazine"}"]`).click();
     await page.getByRole("button", { name: "All feeds", exact: true }).click();
     await expect.poll(() => page.locator("#stories img").first().evaluate(async image => { await image.decode(); return image.naturalWidth > 0; })).toBe(true);
     const lead = await page.locator("#stories .story").nth(0).boundingBox();
@@ -1042,7 +1049,8 @@ for (const width of [1024, 1440]) {
     expect(sideBottom.y).toBeGreaterThanOrEqual(sideTop.y + sideTop.height - 1);
     expect(lead.x + lead.width).toBeLessThan(sideTop.x);
     const original = await page.locator("#stories .story").evaluateAll(nodes => nodes.map(node => node.dataset.hash));
-    await page.getByRole("button", { name: "Appearance", exact: true }).click();
+    await page.locator("#main").focus();
+  await page.keyboard.press("a");
     await page.getByLabel("Pictures", { exact: true }).selectOption("hide");
     await page.getByRole("button", { name: "Done", exact: true }).click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -1056,7 +1064,7 @@ for (const count of [2, 3]) {
     const model = await fixture(page);
     model.stories = Array.from({ length: count }, (_, i) => ({ ...story(`1:portrait${i}`, `Portrait edition ${i}`), excerpt: "A considered introduction with enough detail to read before opening the full article. ".repeat(6), ...(i === 0 ? { picture: "https://fixture.invalid/portrait.svg" } : {}) }));
     await page.route("https://fixture.invalid/portrait.svg", route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="240"><rect width="120" height="240" fill="#987"/></svg>' }));
-    await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+    await page.locator(`[data-layout-choice="${"magazine"}"]`).click();
     await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
     const image = page.locator("#stories img").first();
@@ -1076,7 +1084,7 @@ test("a later photograph sits beside the opening text without changing story ord
   const model = await fixture(page);
   model.stories = Array.from({ length: 3 }, (_, i) => ({ ...story(`1:later${i}`, `Chronological story ${i}`), ...(i === 1 ? { picture: "https://fixture.invalid/later.png" } : {}) }));
   await page.route("https://fixture.invalid/later.png", route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400"><rect width="640" height="400" fill="#987"/></svg>' }));
-  await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+  await page.locator(`[data-layout-choice="${"magazine"}"]`).click();
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
   await expect(page.locator("#stories > li").nth(1)).toHaveAttribute("data-press-role", "feature-right");
@@ -1100,7 +1108,7 @@ test("newspaper continuation leaves the existing composition and story nodes in 
     await held;
     await route.fulfill({ contentType: "application/json", body: JSON.stringify({ stories: [story("1:appended", "A later story")], page: 2, can_continue: false }) });
   });
-  await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+  await page.locator(`[data-layout-choice="${"magazine"}"]`).click();
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
   await expect(page.locator("#stories > li").first()).toHaveAttribute("data-press-role", "brief");
@@ -1120,7 +1128,7 @@ test("newspaper text weight gives a substantial introduction room instead of str
   const model = await fixture(page);
   const introduction = "A longer introduction provides the background, evidence, and practical context a reader needs. ".repeat(10);
   model.stories = Array.from({ length: 6 }, (_, i) => ({ ...story(`1:type${i}`, `Type-led story ${i}`), excerpt: i === 0 ? introduction : "A short item with just the essential facts." }));
-  await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+  await page.locator(`[data-layout-choice="${"magazine"}"]`).click();
   await page.getByRole("button", { name: "Synthetic feed" }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Synthetic feed");
   await expect(page.locator("#stories > li").first()).toHaveAttribute("data-press-role", "lead");

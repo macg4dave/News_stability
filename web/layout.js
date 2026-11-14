@@ -3,7 +3,7 @@ const layouts = ["cards", "magazine", "list"];
 const storageKey = "news-stability-layout-v1";
 
 export function initializeLayout() {
-  const control = document.getElementById("story-layout");
+  const controls = [...document.querySelectorAll("[data-layout-choice]")];
   const reader = document.getElementById("reader");
   const stories = document.getElementById("stories");
   let layout = "cards";
@@ -11,11 +11,15 @@ export function initializeLayout() {
     const saved = localStorage.getItem(storageKey);
     if (layouts.includes(saved)) layout = saved;
   } catch { /* Disabled storage still allows layout changes for this tab. */ }
-  control.value = layout;
-  reader.dataset.layout = layout;
+  function applyLayout(value) {
+    reader.dataset.layout = value;
+    controls.forEach(button => button.setAttribute("aria-pressed", String(button.dataset.layoutChoice === value)));
+  }
+  applyLayout(layout);
 
-  control.addEventListener("change", () => {
-    if (!layouts.includes(control.value)) return;
+  controls.forEach(control => control.addEventListener("click", () => {
+    const value = control.dataset.layoutChoice;
+    if (!layouts.includes(value) || reader.dataset.layout === value) return;
     // Keep a visible story at the same viewport position as its shape changes.
     // Existing DOM nodes, focus, selection, and all request state stay intact.
     const anchor = reader.classList.contains("article-open") ? null : [...stories.querySelectorAll(".story")].find((row) => {
@@ -23,9 +27,9 @@ export function initializeLayout() {
       return box.bottom > 0 && box.top < innerHeight;
     });
     const top = anchor?.getBoundingClientRect().top;
-    reader.dataset.layout = control.value;
+    applyLayout(value);
     reader.dispatchEvent(new Event("layoutchange"));
     if (anchor) window.scrollBy(0, anchor.getBoundingClientRect().top - top);
-    try { localStorage.setItem(storageKey, control.value); } catch { /* Keep this tab usable. */ }
-  });
+    try { localStorage.setItem(storageKey, value); } catch { /* Keep this tab usable. */ }
+  }));
 }

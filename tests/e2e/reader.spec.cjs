@@ -74,7 +74,7 @@ for (const width of [1440, 1024]) {
       await page.setViewportSize({ width, height: 900 });
     }
     for (const layout of ["cards", "magazine", "list"]) {
-      await page.locator("#story-layout").selectOption(layout);
+      await page.locator(`[data-layout-choice="${layout}"]`).click();
       await decoded(page.locator("#stories img").first());
     }
     for (let index = 0; index < 4; index++) await decoded(page.locator(`.story[data-hash="1:story${index}"] img`));
@@ -116,7 +116,7 @@ async function checkPortraitComposition(page, request) {
   await page.getByRole("button", { name: "All feeds", exact: true }).click();
   await expect(page.locator("#stories-heading")).toHaveText("All feeds");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "paper");
-  await page.getByLabel("Story layout", { exact: true }).selectOption("magazine");
+  await page.locator(`[data-layout-choice="${"magazine"}"]`).click();
   const image = page.locator("#stories img").first();
   await decoded(image);
   expect(await image.evaluate(node => node.naturalHeight > node.naturalWidth)).toBe(true);
@@ -125,7 +125,8 @@ async function checkPortraitComposition(page, request) {
   const beside = await page.locator("#stories .story").nth(1).boundingBox();
   expect(beside.width).toBeGreaterThan(main.width * 1.8);
   expect(await image.evaluate(node => getComputedStyle(node).objectFit)).toBe("contain");
-  await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await page.locator("#main").focus();
+  await page.keyboard.press("a");
   await expect(page.getByLabel("Background", { exact: true })).toHaveCount(0);
   await page.getByLabel("Pictures", { exact: true }).selectOption("hide");
   await page.getByRole("button", { name: "Done", exact: true }).click();
@@ -140,7 +141,8 @@ test("pictures stay unfetched when hidden and decode after enabling them", async
   await login(page, request);
   await expect(page.locator("#stories img").first()).not.toHaveAttribute("src");
   expect((await (await request.get(process.env.E2E_CONTROL_URL)).json()).images).toBe(0);
-  await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await page.locator("#main").focus();
+  await page.keyboard.press("a");
   await page.locator("#appearance-pictures").selectOption("show");
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await decoded(page.locator("#stories img").first());
@@ -148,7 +150,7 @@ test("pictures stay unfetched when hidden and decode after enabling them", async
 
 test("endless loading reaches every story exactly once", async ({ page, request }) => {
   await login(page, request);
-  await page.locator("#story-layout").selectOption("list");
+  await page.locator(`[data-layout-choice="${"list"}"]`).click();
   for (let index = 0; index < 12; index++) {
     const button = page.locator(`.story[data-hash="1:story${index}"]`);
     await expect(button).toHaveCount(1);
@@ -193,7 +195,7 @@ test("All feeds and folders read through the river and thumbs update NewsBlur Fo
 test("a rejected read write leaves the story unread", async ({ page, request }) => {
   await login(page, request);
   await control(request, "read-fail");
-  await page.locator("#story-layout").selectOption("list");
+  await page.locator(`[data-layout-choice="${"list"}"]`).click();
   await page.getByRole("button", { name: "Fixture story 0", exact: false }).first().click();
   await expect(page.locator("#article-content")).toContainText("Complete article");
   const rejected = page.waitForResponse(response => response.url().endsWith("/state") && response.request().method() === "POST");
@@ -218,7 +220,7 @@ test("upstream session expiry clears private content", async ({ page, request })
 
 test("scrolling confirms read state through the real server and logout protects pictures", async ({ page, request }) => {
   await login(page, request);
-  await page.locator("#story-layout").selectOption("list");
+  await page.locator(`[data-layout-choice="${"list"}"]`).click();
   const picture = await page.locator("#stories img").first().getAttribute("src");
   await page.getByRole("button", { name: "Fixture story 0", exact: false }).first().click();
   await expect(page.locator("#article-content")).toContainText("Complete article");

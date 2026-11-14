@@ -227,3 +227,10 @@ an ordinary account. The operator supplies or authorizes that environment.
   Never place secrets in the evidence record or remove NewsBlur data for rollback.
 
 Release status remains **not approved** until these gates have recorded evidence.
+
+Floating toolbar update: synthetic browser checks cover the three layout icon
+toggles, one selected state, a single row beside Refresh and Back to top,
+remembered layout, and retained article width. Appearance (`a`) and shortcut
+help (`?`) remain available without toolbar icons. Installed-server and human
+review gates above remain open.
+Verification: full npm test passed (92 browser checks and 10 shipped-container tests); 36 review screenshots regenerated. Evidence: .local/floating-layout-gate.log and .local/floating-layout-review.log.

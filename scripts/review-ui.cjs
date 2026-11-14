@@ -74,7 +74,7 @@ async function main() {
           : route.fulfill({ contentType: "image/svg+xml", body: route.request().url().includes("portrait")
             ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 640"><rect width="400" height="640" fill="#bfd3d0"/><circle cx="270" cy="140" r="65" fill="#f1d6a0"/><path d="M0 520L170 210 400 540V640H0Z" fill="#698b78"/></svg>'
             : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540"><rect width="960" height="540" fill="#bfd3d0"/><circle cx="720" cy="140" r="65" fill="#f1d6a0"/><path d="M0 420L270 150 570 440 780 240 960 400V540H0Z" fill="#698b78"/><path d="M0 480L320 350 610 490 960 390V540H0Z" fill="#365e50"/></svg>' }));
-        await page.getByLabel("Story layout", { exact: true }).selectOption(layout);
+        await page.locator(`[data-layout-choice="${layout}"]`).click();
         await page.getByRole("button", { name: "Synthetic feed" }).click();
         await page.locator("#stories-heading").filter({ hasText: "Synthetic feed" }).waitFor();
         await page.locator("#stories .story").first().waitFor();

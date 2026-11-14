@@ -8,7 +8,7 @@ for (const [width, columns] of [[1024, 2], [1440, 3], [1920, 4], [2560, 6]]) {
     model.stories = Array.from({ length: 12 }, (_, i) => ({ ...story(`1:space${i}`, `Report ${i}`), excerpt: 'A useful introduction with room to breathe.' }));
     await page.getByRole('button', { name: 'Synthetic feed' }).click();
     for (const layout of ['cards', 'magazine', 'list']) {
-      await page.getByLabel('Story layout', { exact: true }).selectOption(layout);
+      await page.locator(`[data-layout-choice="${layout}"]`).click();
       const sidebar = await page.locator('.subscriptions').boundingBox();
       const collection = await page.locator('.story-list').boundingBox();
       expect(Math.abs(collection.x - sidebar.width)).toBeLessThan(1);

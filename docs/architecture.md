@@ -40,15 +40,17 @@ the smaller of 480px/40 percent of the viewport. CSS and the resize controller
 keep the reading grid, fixed sidebar, footer and divider aligned. Resizing resets
 scroll-read tracking; native newspaper reflow responds to the new available width.
 The reading grid reserves its width, including beside the footer. The sidebar
-scrolls independently, keeps its control row visible, and contains
+scrolls independently and contains
 wheel/touch scroll chaining at its edges. It is keyboard-focusable for native
 scrolling. Sidebar wheel, touch and keyboard gestures cannot arm automatic read
-tracking in the main page. Refresh,
-Appearance and Keyboard shortcuts share the sidebar toolbar. A transparent fixed
-Page tools group at the top right contains Back to top. It uses smooth upward
-scrolling, respects reduced motion, and resets scroll-read tracking without
-closing the current story. The collection header reserves room for the control;
-additional page tool buttons can share the same flex container. There is no top
+tracking in the main page. A transparent fixed Page tools group at the top right
+contains three icon toggles for Cards, Magazine and List, followed by Refresh and
+Back to top. The selected layout is announced with aria-pressed and remembered
+locally. Layout and Refresh controls are hidden outside the signed-in reader.
+Appearance and keyboard help have no toolbar icons; `a` opens reading preferences
+and `?` opens shortcut help. Back to top uses smooth upward scrolling, respects
+reduced motion, and resets scroll-read tracking without closing the current story.
+The collection header reserves room for the toolbar. There is no top
 masthead, displayed username, logout control or visible feeds heading. Opened
 articles fill the available reading column; List retains inline expansion.
 Collection and article views share a fluid 1-2rem gutter and full available width,

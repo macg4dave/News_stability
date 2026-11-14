@@ -11,7 +11,7 @@ test('newspaper chooses a substantial source photo after a tiny candidate', asyn
     requested.push(route.request().url());
     return route.fulfill({ contentType: 'image/svg+xml', body: route.request().url().includes('tiny') ? tiny : photo });
   });
-  await page.getByLabel('Story layout', { exact: true }).selectOption('magazine');
+  await page.locator(`[data-layout-choice="${'magazine'}"]`).click();
   await page.getByRole('button', { name: 'Synthetic feed' }).click();
   const image = page.locator('#stories img').first();
   await expect(image).toHaveAttribute('src', 'https://fixture.invalid/photo.svg');
@@ -24,7 +24,7 @@ test('tiny photos stay modest and short stories form an ordered brief band', asy
   const model = await fixture(page);
   model.stories = Array.from({ length: 3 }, (_, i) => ({ ...story(`1:brief${i}`, `Short report ${i}`), excerpt: 'The essential facts in one complete sentence.', ...(i === 0 ? { picture: 'https://fixture.invalid/tiny.svg' } : {}) }));
   await page.route('https://fixture.invalid/tiny.svg', route => route.fulfill({ contentType: 'image/svg+xml', body: tiny }));
-  await page.getByLabel('Story layout', { exact: true }).selectOption('magazine');
+  await page.locator(`[data-layout-choice="${'magazine'}"]`).click();
   await page.getByRole('button', { name: 'Synthetic feed' }).click();
   await expect(page.locator('#stories .small-picture')).toHaveCount(1);
   await expect(page.locator('#stories [data-press-role="brief"]')).toHaveCount(3);
@@ -39,13 +39,13 @@ test('supporting introductions end at sentences and restore in Cards', async ({ 
   const copy = 'A complete sentence with useful background and carefully reported detail. '.repeat(14).trim();
   model.stories = Array.from({ length: 3 }, (_, i) => ({ ...story(`1:balanced${i}`, `Balanced story ${i}`), excerpt: copy, ...(i === 0 ? { picture: 'https://fixture.invalid/photo.svg' } : {}) }));
   await page.route('https://fixture.invalid/photo.svg', route => route.fulfill({ contentType: 'image/svg+xml', body: photo }));
-  await page.getByLabel('Story layout', { exact: true }).selectOption('magazine');
+  await page.locator(`[data-layout-choice="${'magazine'}"]`).click();
   await page.getByRole('button', { name: 'Synthetic feed' }).click();
   await expect(page.locator('#stories > li').first()).toHaveAttribute('data-press-role', 'lead');
   const side = page.locator('#stories .story-excerpt').nth(1);
   await expect.poll(async () => (await side.textContent()).length).toBeLessThanOrEqual(620);
   expect(await side.textContent()).toMatch(/detail\.$/);
-  await page.getByLabel('Story layout', { exact: true }).selectOption('cards');
+  await page.locator(`[data-layout-choice="${'cards'}"]`).click();
   await expect(side).toHaveText(copy);
   expect(model.actions).toEqual([]);
 });
@@ -58,7 +58,8 @@ test('opened articles preserve caption and credit with readable typography', asy
   await page.locator('#stories .story').first().click();
   await expect(page.locator('#article-content figcaption')).toHaveText('A landscape. Credit: Fixture photographer.');
   expect(await page.locator('#article-content').evaluate(node => node.getBoundingClientRect().width)).toBeGreaterThan(800);
-  await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+  await page.locator("#main").focus();
+  await page.keyboard.press("a");
   await page.getByLabel('Article font', { exact: true }).selectOption('sans');
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   expect(await page.locator('#article-content').evaluate(node => getComputedStyle(node).fontFamily)).toContain('sans-serif');

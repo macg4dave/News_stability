@@ -11,7 +11,7 @@ for (const layout of ['cards', 'magazine', 'list']) {
     await page.route('**/api/feeds', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ feeds, folders: [] }) }));
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await expect(page.locator('#feed-tree .feed')).toHaveCount(80);
-    await page.getByLabel('Story layout', { exact: true }).selectOption(layout);
+    await page.locator(`[data-layout-choice="${layout}"]`).click();
     await page.getByRole('button', { name: 'Synthetic feed' }).click();
     const sidebar = page.locator('.subscriptions');
     await page.evaluate(() => window.scrollTo(0, 1000));

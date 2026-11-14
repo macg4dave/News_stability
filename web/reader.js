@@ -26,7 +26,6 @@ el("reader").addEventListener("layoutchange", () => {
   }
   scheduleMore();
 });
-el("show-appearance").addEventListener("click", () => el("appearance").showModal());
 el("back-to-top").addEventListener("click", () => {
   resetScrollRead();
   window.scrollTo({ top:0, behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
@@ -80,12 +79,14 @@ function cancelReading() {
 function signedOut(text = "Sign in to your NewsBlur account.") {
   cancelReading();
   clearTimeout(state.expiryTimer);
+  if (el("appearance").open) el("appearance").close();
   if (el("shortcuts").open) el("shortcuts").close();
   state.resume = (state.feed || state.view !== "feed") ? { username: state.session?.username, view: state.view, feedID: state.feed?.id, page: state.page, filter: state.filter, folder: state.folder } : null;
   feedback.reset();
   state.session = null;
   el("signin").hidden = false;
   el("reader").hidden = true;
+  el("reading-tools").hidden = true;
 
   el("login-submit").disabled = true;
   el("login-password").value = "";
@@ -128,6 +129,7 @@ async function connect() {
     } else {
       el("signin").hidden = false;
       el("reader").hidden = true;
+      el("reading-tools").hidden = true;
       message("login-status", "Sign in to your NewsBlur account.");
     }
     el("login-submit").disabled = false;
@@ -155,6 +157,7 @@ function showReader() {
   scheduleSessionExpiry();
   el("signin").hidden = true;
   el("reader").hidden = false;
+  el("reading-tools").hidden = false;
 
   notice("");
 }
@@ -828,7 +831,7 @@ keyboard.on("g s", () => {
   if (el("reader").classList.contains("article-open")) returnToStories();
   else (el("stories").querySelector(".story[aria-current='true']") || el("stories").querySelector(".story"))?.focus();
 });
+keyboard.on("a", () => el("appearance").showModal());
 keyboard.on("?", () => el("shortcuts").showModal());
 keyboard.listen();
-el("show-shortcuts").addEventListener("click", () => el("shortcuts").showModal());
 connect();

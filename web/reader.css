@@ -36,8 +36,7 @@ input { min-width:0; width:100%; padding:.7rem; border:1px solid var(--line); ba
 .story-list { grid-column:2; width:100%; padding:var(--page-gutter) var(--page-gutter) 2rem; }
 .panel-heading { display:flex; justify-content:space-between; gap:1rem; align-items:center; padding:.5rem .75rem 1rem; }
 .subscriptions .panel-heading { padding:.25rem .75rem .75rem; }
-.sidebar-tools { position:sticky; top:0; z-index:1; background:var(--panel); justify-content:flex-start; gap:.35rem; }
-.collection-heading { padding:0 3.25rem 1rem 0; flex-wrap:wrap; border-bottom:1px solid var(--line); }
+.collection-heading { padding:0 15.5rem 1rem 0; flex-wrap:wrap; border-bottom:1px solid var(--line); }
 #stories-heading { font:normal clamp(1.6rem,2.5vw,2.2rem)/1.2 Georgia,serif; letter-spacing:-.025em; overflow-wrap:anywhere; }
 .panel-heading button { font-size:.8rem; }
 .panel-status { color:var(--muted); font-size:.8rem; padding:.75rem 0 0; margin-bottom:.5rem; }
@@ -69,8 +68,6 @@ input { min-width:0; width:100%; padding:.7rem; border:1px solid var(--line); ba
 .read-indicator { position:absolute; inset-inline-start:0; top:.15em; width:3px; height:.95em; border-radius:999px; background:#2167b5; box-shadow:0 0 0 3px rgb(33 103 181 / .09); pointer-events:none; }
 .story.read .read-indicator { background:transparent; box-shadow:none; }
 .story[aria-current="true"] { background:var(--wash); box-shadow:inset 3px 0 var(--accent); }
-.layout-control { display:flex; align-items:center; gap:.5rem; font-size:.75rem; color:var(--muted); }
-.layout-control select { background:transparent; border-color:transparent; font-size:.8rem; }
 .story-list { container-type:inline-size; }
 .stories li { min-width:0; }
 .date-heading { display:none; margin:0; padding:1.25rem 1rem .65rem; color:var(--accent); font-size:.7rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; }
@@ -181,3 +178,6 @@ body:has(#reader:not([hidden])) > footer { margin-inline-start:var(--sidebar-wid
 #sidebar-resize::after { content:""; position:absolute; top:0; bottom:0; left:4px; width:2px; background:transparent; }
 #sidebar-resize:hover::after,#sidebar-resize:focus-visible::after,.sidebar-resizing #sidebar-resize::after { background:var(--muted); }
 .sidebar-resizing,.sidebar-resizing * { cursor:col-resize!important; user-select:none!important; }
+
+.reading-tools, .layout-tools { display:flex; align-items:center; gap:.25rem; }
+.floating-tools .icon-button[aria-pressed="true"] { background:var(--wash); border-color:var(--ink); color:var(--ink); }

@@ -32,7 +32,6 @@
     </section>
     <section id="reader" class="reader" aria-label="News reader" hidden>
       <aside id="feed-sidebar" class="subscriptions" aria-label="Feed subscriptions" tabindex="0">
-        <div class="panel-heading sidebar-tools" role="group" aria-label="Reader controls"><button id="refresh" class="icon-button" aria-label="Refresh" title="Refresh" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1"/></svg></button><button id="show-appearance" class="icon-button" aria-label="Appearance" title="Appearance" type="button" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-1.7-1.5-2.4-2.7-1.7l-1 .6c-1.2.7-2.6-.4-2.2-1.7l.4-1.3C16.2 5.4 14.6 3 12 3Z"/><path d="M7.5 10h.01M10 6.5h.01M6.5 14h.01"/></svg></button><button id="show-shortcuts" class="icon-button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts" type="button" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 9h.01M12 9h.01M17 9h.01M7 12h.01M12 12h.01M17 12h.01M8 15h8"/></svg></button></div>
         <button id="all-feeds" class="briefing-link" type="button">All feeds</button>
         <button id="focus-stories" class="briefing-link" type="button">Focus <span class="count" id="focus-count"></span></button>
         <button id="daily-briefing" class="briefing-link" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h3M8 18h8"/></svg><span>Daily Briefing</span></button>
@@ -42,10 +41,6 @@
       <div id="sidebar-resize" role="separator" tabindex="0" aria-label="Resize feed sidebar" aria-orientation="vertical" aria-controls="feed-sidebar" title="Drag to resize sidebar. Arrow keys adjust; double-click resets."></div>
       <section class="story-list" aria-labelledby="stories-heading">
         <div class="panel-heading collection-heading"><h2 id="stories-heading">Choose a feed</h2>
-          <div class="layout-control">
-            <label for="story-layout">Story layout</label>
-            <select id="story-layout"><option value="cards">Cards</option><option value="magazine">Magazine</option><option value="list">List</option></select>
-          </div>
         </div>
         <form id="story-filters" class="story-filters" hidden>
           <label for="read-filter">Show</label>
@@ -88,6 +83,14 @@
     <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
   </main>
   <div class="floating-tools" role="group" aria-label="Page tools">
+    <div id="reading-tools" class="reading-tools" hidden>
+      <div class="layout-tools" role="group" aria-label="Story layout">
+        <button class="icon-button" type="button" data-layout-choice="cards" aria-label="Cards view" title="Cards view" aria-pressed="false"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+        <button class="icon-button" type="button" data-layout-choice="magazine" aria-label="Magazine view" title="Magazine view" aria-pressed="false"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M12 8h5M12 12h5M7 16h10"/><rect x="7" y="8" width="2" height="4"/></svg></button>
+        <button class="icon-button" type="button" data-layout-choice="list" aria-label="List view" title="List view" aria-pressed="false"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></button>
+      </div>
+      <button id="refresh" class="icon-button" aria-label="Refresh" title="Refresh" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1"/></svg></button>
+    </div>
     <button id="back-to-top" class="icon-button" type="button" aria-label="Back to top" title="Back to top"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 10 6-6 6 6M12 4v16"/></svg></button>
   </div>
   <dialog id="appearance" aria-labelledby="appearance-heading">
@@ -111,6 +114,7 @@
       <dt><kbd>v</kbd></dt><dd>Open the original story in a new tab</dd>
       <dt><kbd>g</kbd> then <kbd>f</kbd></dt><dd>Focus the feed list</dd>
       <dt><kbd>g</kbd> then <kbd>s</kbd></dt><dd>Return to and focus the story list</dd>
+      <dt><kbd>a</kbd></dt><dd>Reading appearance</dd>
       <dt><kbd>?</kbd></dt><dd>Show this help</dd>
       <dt><kbd>Escape</kbd></dt><dd>Close this help</dd>
     </dl>

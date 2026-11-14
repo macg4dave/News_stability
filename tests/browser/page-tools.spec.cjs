@@ -8,12 +8,12 @@ for (const layout of ['cards', 'magazine', 'list']) {
     const model = await fixture(page);
     model.stories = Array.from({ length: 30 }, (_, i) => story(i ? `1:top${i}` : '1:abc', `Top report ${i}`));
     model.fullTexts['1:abc'] = '<p>A long synthetic article for checking the floating toolbar.</p>'.repeat(80);
-    await page.getByLabel('Story layout', { exact: true }).selectOption(layout);
+    await page.locator(`[data-layout-choice="${layout}"]`).click();
     await page.getByRole('button', { name: 'Synthetic feed' }).click();
     const toolbar = page.getByRole('group', { name: 'Page tools' });
     const top = toolbar.getByRole('button', { name: 'Back to top', exact: true });
     expect(await toolbar.evaluate(node => getComputedStyle(node).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
-    const selector = await page.locator('#story-layout').boundingBox();
+    const selector = await page.getByRole('group', { name: 'Story layout', exact: true }).boundingBox();
     const initial = await top.boundingBox();
     expect(initial.x).toBeGreaterThanOrEqual(selector.x + selector.width);
     await page.evaluate(() => window.scrollTo(0, 1200));
