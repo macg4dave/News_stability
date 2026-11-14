@@ -31,7 +31,7 @@
       <p class="muted">Your feeds and reading history stay with NewsBlur.</p>
     </section>
     <section id="reader" class="reader" aria-label="News reader" hidden>
-      <aside class="subscriptions" aria-label="Feed subscriptions">
+      <aside id="feed-sidebar" class="subscriptions" aria-label="Feed subscriptions" tabindex="0">
         <div class="panel-heading sidebar-tools" role="group" aria-label="Reader controls"><button id="refresh" class="icon-button" aria-label="Refresh" title="Refresh" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1"/></svg></button><button id="show-appearance" class="icon-button" aria-label="Appearance" title="Appearance" type="button" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-1.7-1.5-2.4-2.7-1.7l-1 .6c-1.2.7-2.6-.4-2.2-1.7l.4-1.3C16.2 5.4 14.6 3 12 3Z"/><path d="M7.5 10h.01M10 6.5h.01M6.5 14h.01"/></svg></button><button id="show-shortcuts" class="icon-button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts" type="button" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 9h.01M12 9h.01M17 9h.01M7 12h.01M12 12h.01M17 12h.01M8 15h8"/></svg></button></div>
         <button id="all-feeds" class="briefing-link" type="button">All feeds</button>
         <button id="focus-stories" class="briefing-link" type="button">Focus <span class="count" id="focus-count"></span></button>
@@ -39,6 +39,7 @@
         <p id="feed-status" class="panel-status" role="status"></p>
         <nav id="feed-tree" aria-label="Feed folders"></nav>
       </aside>
+      <div id="sidebar-resize" role="separator" tabindex="0" aria-label="Resize feed sidebar" aria-orientation="vertical" aria-controls="feed-sidebar" title="Drag to resize sidebar. Arrow keys adjust; double-click resets."></div>
       <section class="story-list" aria-labelledby="stories-heading">
         <div class="panel-heading collection-heading"><h2 id="stories-heading">Choose a feed</h2>
           <div class="layout-control">
@@ -64,7 +65,11 @@
           <h1 id="article-title" tabindex="-1" dir="auto">A little space for the stories that matter.</h1>
         <p id="article-meta" class="muted">Choose a feed, then a story to start reading.</p>
         <p id="article-status" role="status" hidden></p>
-        <p id="full-text-status" class="muted" role="status" hidden></p>
+        <div class="article-source">
+          <p id="full-text-status" class="muted" role="status" hidden></p>
+          <a id="original" target="_blank" rel="noopener noreferrer" hidden>Read the original</a>
+        </div>
+          <div id="article-content" class="article-content" dir="auto"></div>
         <div id="feedback" class="feedback" hidden>
           <label for="training-target">Train NewsBlur on</label>
           <select id="training-target" aria-describedby="training-help"></select>
@@ -74,16 +79,17 @@
           <p id="training-help" class="muted">Applies to matching stories in this feed. Refresh to see updated Focus results.</p>
           <p id="feedback-status" role="status"></p>
         </div>
-        <a id="original" target="_blank" rel="noopener noreferrer" hidden>Read the original</a>
-          <div id="article-content" class="article-content" dir="auto"></div>
         <section id="connections" class="connections" aria-label="Linked stories" hidden></section>
         <div id="story-return" class="story-return" hidden>
-          <button id="back-to-previous" type="button"><svg class="icon collapse-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 11 6-6 6 6M6 19l6-6 6 6"/></svg><span>Back to previous page</span></button>
+          <button id="back-to-previous" type="button" aria-label="Back to previous page" title="Back to previous page"><svg class="icon collapse-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 11 6-6 6 6M6 19l6-6 6 6"/></svg><span>Back to previous page</span></button>
         </div>
       </article>
     </section>
     <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
   </main>
+  <div class="floating-tools" role="group" aria-label="Page tools">
+    <button id="back-to-top" class="icon-button" type="button" aria-label="Back to top" title="Back to top"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 10 6-6 6 6M12 4v16"/></svg></button>
+  </div>
   <dialog id="appearance" aria-labelledby="appearance-heading">
     <h2 id="appearance-heading">Reading appearance</h2>
     <p class="muted">Warm paper. Choose your article font and text size. Preferences stay on this browser.</p>

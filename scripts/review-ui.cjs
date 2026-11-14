@@ -57,7 +57,7 @@ async function main() {
   const browser = await chromium.launch();
   const images = [];
   try {
-    for (const width of [1440, 1024]) {
+    for (const width of [2560, 1920, 1440, 1024]) {
       const theme = "paper";
       const cases = [
         ...["cards", "magazine", "list"].map(layout => ({ layout, scenario: "mixed" })),
@@ -76,6 +76,7 @@ async function main() {
             : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540"><rect width="960" height="540" fill="#bfd3d0"/><circle cx="720" cy="140" r="65" fill="#f1d6a0"/><path d="M0 420L270 150 570 440 780 240 960 400V540H0Z" fill="#698b78"/><path d="M0 480L320 350 610 490 960 390V540H0Z" fill="#365e50"/></svg>' }));
         await page.getByLabel("Story layout", { exact: true }).selectOption(layout);
         await page.getByRole("button", { name: "Synthetic feed" }).click();
+        await page.locator("#stories-heading").filter({ hasText: "Synthetic feed" }).waitFor();
         await page.locator("#stories .story").first().waitFor();
         for (const mode of (scenario === "mixed" ? ["collection", "article"] : ["collection"])) {
           if (mode === "article") {
@@ -99,7 +100,7 @@ async function main() {
       }
     }
     await writeFile(path.join(output, "manifest.json"), JSON.stringify({ generated_at: new Date().toISOString(), synthetic: true, images }, null, 2) + "\n");
-    await writeFile(path.join(output, "index.html"), `<!doctype html><html lang="en"><meta charset="utf-8"><title>News Stability visual review</title><style>body{font:16px system-ui;margin:2rem;background:#f7f6f2;color:#253531}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:2rem}img{width:100%;max-height:32rem;object-fit:cover;object-position:top;border:1px solid #bbb}a{color:inherit}</style><h1>News Stability visual review</h1><p>Original synthetic content only. Warm paper across three reading layouts and two desktop widths. Newspaper cases include landscape, portrait, text-only and later-photo composition; collection and expanded article. Click a picture for full size.</p><main>${images.map(item => `<figure><a href="${item.name}"><img loading="lazy" src="${item.name}" alt="${item.layout}, ${item.theme}, ${item.width}px, ${item.mode}"></a><figcaption>${item.name}</figcaption></figure>`).join("\n")}</main></html>`);
+    await writeFile(path.join(output, "index.html"), `<!doctype html><html lang="en"><meta charset="utf-8"><title>News Stability visual review</title><style>body{font:16px system-ui;margin:2rem;background:#f7f6f2;color:#253531}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:2rem}img{width:100%;max-height:32rem;object-fit:cover;object-position:top;border:1px solid #bbb}a{color:inherit}</style><h1>News Stability visual review</h1><p>Original synthetic content only. Warm paper across three reading layouts and four desktop widths. Newspaper cases include landscape, portrait, text-only and later-photo composition; collection and expanded article. Click a picture for full size.</p><main>${images.map(item => `<figure><a href="${item.name}"><img loading="lazy" src="${item.name}" alt="${item.layout}, ${item.theme}, ${item.width}px, ${item.mode}"></a><figcaption>${item.name}</figcaption></figure>`).join("\n")}</main></html>`);
     const overview = await browser.newPage({ viewport: { width: 1800, height: 1000 } });
     await overview.goto(pathToFileURL(path.join(output, "index.html")).href);
     await overview.addStyleTag({ content: "body{margin:1rem}main{grid-template-columns:repeat(6,minmax(0,1fr));gap:.75rem}figure{margin:0}img{height:200px;object-fit:cover}figcaption{font-size:11px;overflow-wrap:anywhere}" });

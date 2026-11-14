@@ -25,7 +25,10 @@ async function login(page, request, mode = "healthy", remember = false) {
   const loginResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/login");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   sessionTokens.set(page, (await (await loginResponse).json()).csrf_token);
-  await page.getByRole("button", { name: "Fixture feed", exact: false }).click();
+  await expect(page.locator("#stories-heading")).toHaveText("All feeds");
+  await expect(page.getByRole("button", { name: "All feeds", exact: true })).toHaveAttribute("aria-current", "true");
+  await page.locator("#feed-tree").getByRole("button", { name: "Fixture feed", exact: false }).click();
+  await expect(page.locator("#stories-heading")).toHaveText("Fixture feed");
   await expect(page.getByRole("button", { name: "Fixture story 0", exact: false }).first()).toBeVisible();
   return errors;
 }
@@ -41,6 +44,15 @@ for (const width of [1440, 1024]) {
   test(`shipped images decode in every layout and inline article at width ${width}`, async ({ page, request }) => {
     await page.setViewportSize({ width, height: 900 });
     const errors = await login(page, request, "healthy", width === 1440);
+    if (width === 1440) {
+      const resize = page.getByRole("separator", { name: "Resize feed sidebar" });
+      const before = (await page.locator(".subscriptions").boundingBox()).width;
+      await resize.focus();
+      await page.keyboard.press("ArrowRight");
+      await expect.poll(async () => (await page.locator(".subscriptions").boundingBox()).width).toBe(Math.round(before + 16));
+      await resize.dblclick();
+      await expect.poll(async () => (await page.locator(".subscriptions").boundingBox()).width).toBe(before);
+    }
     const cookies = await page.context().cookies();
     const sessionCookie = cookies.find(cookie => cookie.name === "reader_session");
     expect(sessionCookie.httpOnly).toBe(true);
@@ -54,6 +66,13 @@ for (const width of [1440, 1024]) {
         expect((await response.json()).feeds[0].title).toBe("Fixture feed");
       } finally { await restored.close(); }
     } else expect(sessionCookie.expires).toBe(-1);
+    if (width === 1440) {
+      await page.setViewportSize({ width: 2560, height: 1000 });
+      const collection = await page.locator(".story-list").boundingBox();
+      expect(Math.abs(collection.x + collection.width - 2560)).toBeLessThan(1);
+      await decoded(page.locator("#stories img").first());
+      await page.setViewportSize({ width, height: 900 });
+    }
     for (const layout of ["cards", "magazine", "list"]) {
       await page.locator("#story-layout").selectOption(layout);
       await decoded(page.locator("#stories img").first());

@@ -13,8 +13,14 @@ for (const layout of ['cards', 'magazine', 'list']) {
     const back = page.getByRole('button', { name: 'Back to previous page', exact: true });
     await back.scrollIntoViewIfNeeded();
     expect(await page.evaluate(() => scrollY)).toBeGreaterThan(1000);
-    if (layout === 'list') await expect(back.locator('svg')).toBeVisible();
-    else await expect(back.locator('svg')).toBeHidden();
+    if (layout === 'list') {
+      await expect(back.locator('svg')).toBeVisible();
+      await expect(back.locator('span')).toBeHidden();
+      await expect(back).toHaveAttribute('title', 'Back to previous page');
+    } else {
+      await expect(back.locator('svg')).toBeHidden();
+      await expect(back.locator('span')).toBeVisible();
+    }
     await back.click();
     await expect(page.locator('#article')).toBeHidden();
     await expect(origin).toBeFocused();

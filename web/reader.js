@@ -1,3 +1,4 @@
+import { initializeSidebar } from "./sidebar.js";
 import { initializeNewspaper } from "./newspaper.js";
 import { initializeFeedback } from "./feedback.js";
 import { KeyboardHandler } from "./keyboard.js";
@@ -26,6 +27,10 @@ el("reader").addEventListener("layoutchange", () => {
   scheduleMore();
 });
 el("show-appearance").addEventListener("click", () => el("appearance").showModal());
+el("back-to-top").addEventListener("click", () => {
+  resetScrollRead();
+  window.scrollTo({ top:0, behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+});
 
 class APIError extends Error {
   constructor(status, data) {
@@ -119,8 +124,7 @@ async function connect() {
     const session = await api("/api/session");
     state.session = session;
     if (session.authenticated) {
-      showReader();
-      await loadFeeds();
+      await openReader();
     } else {
       el("signin").hidden = false;
       el("reader").hidden = true;
@@ -155,6 +159,14 @@ function showReader() {
   notice("");
 }
 
+async function openReader() {
+  showReader();
+  const loaded = await loadFeeds();
+  if (loaded && state.session?.authenticated && state.view === "feed" && !state.feed) {
+    await loadReadingPage({ kind:"river", page:1, filter:"all" });
+  }
+}
+
 async function readingError(error, target) {
   if (error.name === "AbortError") return;
   if (error.status === 401 && error.code === "session_expired") {
@@ -174,8 +186,7 @@ el("login-form").addEventListener("submit", async (event) => {
   const payload = { username: el("login-username").value, password: el("login-password").value, remember_me: el("login-remember").checked };
   try {
     state.session = await api("/api/login", { method: "POST", body: JSON.stringify(payload) });
-    showReader();
-    await loadFeeds();
+    await openReader();
     el("all-feeds").focus();
   } catch (error) {
     message("login-status", error.message || "Could not sign in. Try again.", true);
@@ -306,6 +317,7 @@ async function loadFeeds() {
       el("story-filters").hidden = true;
       message("story-status", "This feed is no longer in your subscriptions. Choose another feed.");
     }
+    return true;
   } catch (error) {
     if (epoch === state.epoch) await readingError(error, "feed-status");
   } finally {
@@ -797,6 +809,8 @@ function moveStory(direction) {
   const next = current < 0 ? (direction > 0 ? 0 : state.stories.length - 1) : current + direction;
   if (next >= 0 && next < state.stories.length) selectStory(state.stories[next]);
 }
+
+initializeSidebar(el("sidebar-resize"), resetScrollRead);
 
 const refreshNewspaper = initializeNewspaper(el("reader"), el("stories"), resetScrollRead);
 

@@ -19,7 +19,7 @@ feed fetcher, publisher scraper, ranking system or story database.
   and full text.
 - `web/reader.js`: current account, scope, stories, selection and confirmed actions.
   `layout.js`, `appearance.js`, `pictures.js`, `dates.js`, `infinite.js`, `keyboard.js`
-  `scroll-read.js`, `feedback.js`, `newspaper.js` and `relations.js` own focused
+  `scroll-read.js`, `feedback.js`, `sidebar.js`, `newspaper.js` and `relations.js` own focused
   presentation responsibilities.
 - Nginx serves static assets and proxies `/api/` to Go with CSP and auth limits.
 - `tests/e2e` and `compose.e2e.yaml`: a test-only synthetic HTTPS NewsBlur server
@@ -27,10 +27,39 @@ feed fetcher, publisher scraper, ranking system or story database.
   without API/image mocks or screenshot judgments. `npm test` runs this with Go,
   race, static security, notices and the faster browser contract tests in CI.
 
-The UI targets desktop browsers, with a persistent feed sidebar. Refresh,
-Appearance and Keyboard shortcuts share the sidebar toolbar. There is no top
+Fresh visits and successful sign-ins open All feeds (All stories) after loading
+subscriptions. Refresh preserves the selected scope; same-account reauthentication
+can still resume its interrupted reading location. A failed subscription load
+remains an explicit error instead of silently opening a different scope.
+
+The UI targets desktop browsers, with a fixed, viewport-height feed sidebar.
+Its edge is a draggable, keyboard-focusable separator. Arrow keys adjust width;
+Home/End reach the bounds, and double-click resets the fluid default. A validated
+numeric display preference is saved locally. Width is bounded between 208px and
+the smaller of 480px/40 percent of the viewport. CSS and the resize controller
+keep the reading grid, fixed sidebar, footer and divider aligned. Resizing resets
+scroll-read tracking; native newspaper reflow responds to the new available width.
+The reading grid reserves its width, including beside the footer. The sidebar
+scrolls independently, keeps its control row visible, and contains
+wheel/touch scroll chaining at its edges. It is keyboard-focusable for native
+scrolling. Sidebar wheel, touch and keyboard gestures cannot arm automatic read
+tracking in the main page. Refresh,
+Appearance and Keyboard shortcuts share the sidebar toolbar. A transparent fixed
+Page tools group at the top right contains Back to top. It uses smooth upward
+scrolling, respects reduced motion, and resets scroll-read tracking without
+closing the current story. The collection header reserves room for the control;
+additional page tool buttons can share the same flex container. There is no top
 masthead, displayed username, logout control or visible feeds heading. Opened
 articles fill the available reading column; List retains inline expansion.
+Collection and article views share a fluid 1-2rem gutter and full available width,
+without the old 90rem collection cap. Cards adapt from two columns at 1024px to
+six at 2560px when enough stories exist, retaining a 20rem minimum card width and
+1.25rem gaps. Short collections naturally have fewer columns. Wide newspaper
+photo features put copy beside photographs, with additional native text columns.
+Above a 64rem article measure, an inserted lead picture floats beside the text;
+flow-root keeps the end controls below it. Source figures/captions keep their
+original placement. Training controls follow article content; source/full-text
+status share a compact opening row. Typography preferences still apply.
 Expiry clears reader content; the server logout endpoint remains supported.
 All feeds and Read folder use NewsBlur's multi-feed river, including nested subscriptions.
 The server resolves folder index paths against current subscriptions, checks the
@@ -139,3 +168,11 @@ successful first-batch load, not feed publication time or continuation time.
 
 See [UI roadmap](ui-roadmap.md),
 [verification](ai/testing.md) and [release acceptance](acceptance.md).
+
+## Layout follow-up
+
+The 14 November space review replaces isolated width and padding choices with
+shared gutters and adaptive columns. Preview checks span 1024, 1440, 1920 and
+2560 pixels. Remaining layout work is content-dependent composition: short feeds
+and uneven story lengths still leave natural whitespace; no filler or source
+reordering is introduced. See release acceptance for verification evidence.

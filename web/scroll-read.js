@@ -17,27 +17,27 @@ export function initializeScrollRead(candidates, markRead) {
     }
   }
 
-  function arm(downward = false) {
-    if (document.hidden || !navigator.onLine || document.querySelector("dialog[open]")) { armed = false; return; }
+  function arm(event, downward = false) {
+    if (event.target.closest?.(".subscriptions") || document.hidden || !navigator.onLine || document.querySelector("dialog[open]")) { armed = false; return; }
     armed = true;
     inspect();
     // A short article may already fit entirely, leaving no scroll event to emit.
     if (downward && scrollY + innerHeight >= document.documentElement.scrollHeight - 1) inspect(true);
   }
-  window.addEventListener("wheel", event => arm(event.deltaY > 0), { passive: true });
+  window.addEventListener("wheel", event => arm(event, event.deltaY > 0), { passive: true });
   window.addEventListener("touchstart", event => { touchY = event.touches[0]?.clientY ?? null; }, { passive: true });
   window.addEventListener("touchmove", event => {
     const nextY = event.touches[0]?.clientY ?? null;
-    arm(touchY !== null && nextY !== null && nextY < touchY);
+    arm(event, touchY !== null && nextY !== null && nextY < touchY);
     touchY = nextY;
   }, { passive: true });
   window.addEventListener("pointerdown", event => {
-    if (event.target === document.documentElement) arm(); // Native scrollbar.
+    if (event.target === document.documentElement) arm(event); // Native scrollbar.
     else armed = false;
   });
   window.addEventListener("keydown", event => {
     if (event.ctrlKey || event.altKey || event.metaKey || event.target.closest("input,textarea,select,[contenteditable]") || (event.key === " " && event.target.closest("button,a"))) { armed = false; return; }
-    if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "End", "Home", " "].includes(event.key)) arm(["ArrowDown", "PageDown", "End", " "].includes(event.key));
+    if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "End", "Home", " "].includes(event.key)) arm(event, ["ArrowDown", "PageDown", "End", " "].includes(event.key));
     else armed = false;
   });
   window.addEventListener("scroll", () => {

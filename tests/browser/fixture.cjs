@@ -59,6 +59,9 @@ async function fixture(page, baseURL = "http://127.0.0.1:4173/", remember = fals
   if (remember) await page.getByRole("checkbox", { name: "Remember me", exact: true }).check();
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("button", { name: "Synthetic feed" })).toBeVisible();
+  await expect(page.locator("#stories-heading")).toHaveText("All feeds");
+  await expect(page.locator("#story-status")).toHaveText("2 stories");
+  model.initialReads = model.reads.splice(0);
   return model;
 }
 

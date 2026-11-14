@@ -7,6 +7,62 @@ installed check below. Keep credentials and private stories out of this document
 
 ## Local verification
 
+All feeds default and sidebar resizing, 14 November 2026: the complete `npm test`
+gate passed Go formatting/vet/tests/build, Linux race checks, notices/static
+security, 92 browser checks and 10 shipped-container checks. Fresh sign-in and
+page reopen select All feeds; refresh and interrupted same-account resume retain
+their current scope. Browser fixtures record startup river reads separately and
+wait for explicit collection transitions before interacting with their stories.
+
+New cases cover dragging and keyboard adjustment, remembered width after reload,
+viewport bounds, reset, unavailable storage, aligned reading area and no read
+writes from resizing. The shipped path verifies automatic All feeds selection and
+keyboard resizing/reset under the actual CSP with no policy violations. The
+36-image gallery was regenerated. Static changes are live through the preview
+mount; no server restart or real account access was needed.
+
+
+Independent sidebar scrolling, 14 November 2026: the complete `npm test` gate
+passed Go formatting/vet/tests/build, Linux race checks, notices/static security,
+89 browser checks and 10 shipped-container checks. New synthetic cases exercise
+80 subscriptions in Cards, Magazine and List: the sidebar stays fixed during
+main-page scrolling and at article end, its wheel scrolling leaves the main
+position unchanged, edge scrolling does not chain into the page, and sidebar
+wheel/keyboard gestures do not mark stories read. The existing read tests now
+explicitly place the pointer over the main reading area when scrolling it.
+
+The sidebar is keyboard-focusable, fills the viewport, and keeps its control row
+visible. The reading grid and footer reserve its width. Static updates are live
+through the preview mount; no server restart or real account access was needed.
+
+
+Floating page tools, 14 November 2026: the full `npm test` gate passed Go
+formatting/vet/tests/build, Linux race checks, notices/static security, 86 browser
+checks and 10 shipped-container checks. New cases cover the transparent fixed
+top-right group, header control clearance, click/keyboard return in Cards,
+Magazine and List, keeping the current article open, no accidental read writes,
+and normal/reduced-motion scrolling. The existing preview serves the static
+changes immediately; no server restart or real account access was needed.
+
+
+Space and consistency review, 14 November 2026: the full `npm test` gate passed
+Go formatting/vet/tests/build, Linux race checks, notices/static security,
+82 browser checks and 10 shipped-container checks. New geometry cases cover
+1024/1440/1920/2560px: full collection width, adaptive card columns with 20rem
+minimums, 1.25rem gaps, no horizontal overflow and no read writes from layout
+changes. A wide-article check verifies lead-photo/text flow and return controls
+below the floated photograph. The real shipped path checks 2560px collection
+geometry and actual image decoding without additional logins.
+
+The gallery now contains 36 images across four desktop widths, including portrait,
+text-only and later-photo Magazine cases. Wide newspaper and article views were
+visually inspected. Collections no longer use the 90rem cap; collection/article
+padding shares the same gutter. Training follows article text, and source status
+shares a compact row with the original link. Changes are live through the preview
+mount without a server restart. Natural whitespace remains for short feeds and
+uneven source content; synthetic checks do not replace installed-feed acceptance.
+
+
 Bottom-of-story return, 14 November 2026: the full `npm test` gate passed Go
 formatting/vet/tests/build, Linux race checks, notices/static security, 77 browser
 checks and 10 shipped-container checks. Browser cases cover Cards, Magazine and
