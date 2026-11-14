@@ -134,7 +134,7 @@ func main() {
 			http.SetCookie(w, &http.Cookie{Name: "newsblur_sessionid", Value: "", Path: "/", MaxAge: -1})
 			reply(map[string]int{"code": 1})
 		case r.URL.Path == "/reader/feeds":
-			reply(map[string]any{"feeds": map[string]any{"1": map[string]any{"feed_title": "Fixture feed", "ps": 0, "nt": 12, "ng": 0}}, "folders": []any{map[string]any{"Reading": []int{1}}}})
+			reply(map[string]any{"feeds": map[string]any{"1": map[string]any{"feed_title": "Fixture feed", "favicon": func() string { icon, _ := syntheticPNG(16, 16); return base64.StdEncoding.EncodeToString(icon) }(), "ps": 0, "nt": 12, "ng": 0}}, "folders": []any{map[string]any{"Reading": []int{1}}}})
 		case r.URL.Path == "/classifier/save":
 			if r.Method != "POST" || r.Header.Get("X-CSRFToken") != "fixture-csrf" {
 				http.Error(w, "rejected", 403)

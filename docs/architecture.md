@@ -39,6 +39,11 @@ numeric display preference is saved locally. Width is bounded between 208px and
 the smaller of 480px/40 percent of the viewport. CSS and the resize controller
 keep the reading grid, fixed sidebar, footer and divider aligned. Resizing resets
 scroll-read tracking; native newspaper reflow responds to the new available width.
+An edge control remains fixed and visible while the sidebar scrolls or is
+collapsed. Collapse hides navigation and the resize handle, releases the reserved
+reading/footer width, and preserves the chosen expanded width. Only the display
+preference is stored locally; `g f` reopens navigation before focusing a feed.
+The sidebar uses a thin paper-toned scrollbar with stronger hover/focus contrast.
 The reading grid reserves its width, including beside the footer. The sidebar
 scrolls independently and contains
 wheel/touch scroll chaining at its edges. It is keyboard-focusable for native
@@ -178,3 +183,11 @@ shared gutters and adaptive columns. Preview checks span 1024, 1440, 1920 and
 2560 pixels. Remaining layout work is content-dependent composition: short feeds
 and uneven story lengths still leave natural whitespace; no filler or source
 reordering is introduced. See release acceptance for verification evidence.
+
+Feed navigation requests NewsBlur's existing favicons with `include_favicons=true`.
+The adapter accepts bounded base64 PNG content only and exposes a normalized icon
+on each feed. Navigation rows, selected feed headings, article source headings and
+story source labels reuse it; missing or failed icons use a decorative initial.
+No publisher or third-party favicon service is contacted. CSP permits data images
+for these icons; active formats and arbitrary icon URLs are discarded.
+Upstream field reference: [NewsBlur reader views](https://github.com/samuelclay/NewsBlur/blob/master/apps/reader/views.py).

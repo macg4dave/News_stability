@@ -1,4 +1,4 @@
-// Original reader presentation. Only a bounded display width is persisted.
+// Original reader presentation. Only display preferences are persisted.
 const storageKey = "news-stability-sidebar-width-v1";
 
 export function initializeSidebar(handle, beforeReflow) {
@@ -7,6 +7,25 @@ export function initializeSidebar(handle, beforeReflow) {
   const minimum = 208;
   let preferred = null;
   let drag = null;
+  const toggle = document.getElementById("sidebar-toggle");
+  let collapsed = false;
+  try { collapsed = localStorage.getItem("news-stability-sidebar-collapsed-v1") === "true"; } catch { /* Tab-local state remains usable. */ }
+
+  function applyCollapsed() {
+    beforeReflow();
+    root.classList.toggle("sidebar-collapsed", collapsed);
+    sidebar.hidden = collapsed;
+    handle.hidden = collapsed;
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+    toggle.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
+    toggle.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
+  }
+  toggle.addEventListener("click", () => {
+    collapsed = !collapsed;
+    applyCollapsed();
+    try { localStorage.setItem("news-stability-sidebar-collapsed-v1", String(collapsed)); } catch { /* Keep this tab usable. */ }
+  });
+  applyCollapsed();
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey));
     if (typeof saved === "number" && Number.isFinite(saved) && saved >= minimum && saved <= 480) preferred = saved;

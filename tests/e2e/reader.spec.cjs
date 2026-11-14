@@ -53,6 +53,11 @@ for (const width of [1440, 1024]) {
       await resize.dblclick();
       await expect.poll(async () => (await page.locator(".subscriptions").boundingBox()).width).toBe(before);
     }
+    await decoded(page.locator('#feed-tree .site-icon img').first());
+    await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click();
+    await expect(page.locator('#feed-sidebar')).toBeHidden();
+    await page.getByRole('button', { name: 'Expand sidebar', exact: true }).click();
+    await expect(page.locator('#feed-sidebar')).toBeVisible();
     const cookies = await page.context().cookies();
     const sessionCookie = cookies.find(cookie => cookie.name === "reader_session");
     expect(sessionCookie.httpOnly).toBe(true);
@@ -70,14 +75,14 @@ for (const width of [1440, 1024]) {
       await page.setViewportSize({ width: 2560, height: 1000 });
       const collection = await page.locator(".story-list").boundingBox();
       expect(Math.abs(collection.x + collection.width - 2560)).toBeLessThan(1);
-      await decoded(page.locator("#stories img").first());
+      await decoded(page.locator("#stories .story-picture img").first());
       await page.setViewportSize({ width, height: 900 });
     }
     for (const layout of ["cards", "magazine", "list"]) {
       await page.locator(`[data-layout-choice="${layout}"]`).click();
-      await decoded(page.locator("#stories img").first());
+      await decoded(page.locator("#stories .story-picture img").first());
     }
-    for (let index = 0; index < 4; index++) await decoded(page.locator(`.story[data-hash="1:story${index}"] img`));
+    for (let index = 0; index < 4; index++) await decoded(page.locator(`.story[data-hash="1:story${index}"] .story-picture img`));
     await page.getByRole("button", { name: "Fixture story 0", exact: false }).first().click();
     await expect(page.locator("#article-content")).toContainText("Complete article from NewsBlur.");
     await decoded(page.locator("#article-content img").first());
@@ -117,7 +122,7 @@ async function checkPortraitComposition(page, request) {
   await expect(page.locator("#stories-heading")).toHaveText("All feeds");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "paper");
   await page.locator(`[data-layout-choice="${"magazine"}"]`).click();
-  const image = page.locator("#stories img").first();
+  const image = page.locator("#stories .story-picture img").first();
   await decoded(image);
   expect(await image.evaluate(node => node.naturalHeight > node.naturalWidth)).toBe(true);
   await expect(page.locator("#stories > li").first()).toHaveAttribute("data-press-role", "portrait");
@@ -139,13 +144,13 @@ async function checkPortraitComposition(page, request) {
 test("pictures stay unfetched when hidden and decode after enabling them", async ({ page, request }) => {
   await page.addInitScript(() => localStorage.setItem("news-stability-pictures-v1", "hide"));
   await login(page, request);
-  await expect(page.locator("#stories img").first()).not.toHaveAttribute("src");
+  await expect(page.locator("#stories .story-picture img").first()).not.toHaveAttribute("src");
   expect((await (await request.get(process.env.E2E_CONTROL_URL)).json()).images).toBe(0);
   await page.locator("#main").focus();
   await page.keyboard.press("a");
   await page.locator("#appearance-pictures").selectOption("show");
   await page.getByRole("button", { name: "Done", exact: true }).click();
-  await decoded(page.locator("#stories img").first());
+  await decoded(page.locator("#stories .story-picture img").first());
 });
 
 test("endless loading reaches every story exactly once", async ({ page, request }) => {
@@ -165,7 +170,7 @@ test("All feeds and folders read through the river and thumbs update NewsBlur Fo
   await expect(page.getByRole("button", { name: "Saved stories", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "All feeds", exact: true }).click();
   await expect(page.locator("#stories-heading")).toHaveText("All feeds");
-  await decoded(page.locator("#stories img").first());
+  await decoded(page.locator("#stories .story-picture img").first());
   await page.getByRole("button", { name: "Read Reading", exact: true }).click();
   await expect(page.locator("#stories-heading")).toHaveText("Reading");
   await page.getByRole("button", { name: "Fixture story 0", exact: false }).first().click();
@@ -221,7 +226,7 @@ test("upstream session expiry clears private content", async ({ page, request })
 test("scrolling confirms read state through the real server and logout protects pictures", async ({ page, request }) => {
   await login(page, request);
   await page.locator(`[data-layout-choice="${"list"}"]`).click();
-  const picture = await page.locator("#stories img").first().getAttribute("src");
+  const picture = await page.locator("#stories .story-picture img").first().getAttribute("src");
   await page.getByRole("button", { name: "Fixture story 0", exact: false }).first().click();
   await expect(page.locator("#article-content")).toContainText("Complete article");
   await page.mouse.wheel(0, 10000);

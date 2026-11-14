@@ -1,0 +1,57 @@
+const { test, expect } = require('@playwright/test');
+const { fixture } = require('./fixture.cjs');
+
+test('sidebar collapse remains available while scrolling and restores the chosen width', async ({ page }) => {
+  const model = await fixture(page);
+  const sidebar = page.locator('#feed-sidebar');
+  const handle = page.getByRole('separator', { name: 'Resize feed sidebar' });
+  await handle.focus();
+  await page.keyboard.press('ArrowRight');
+  const width = (await sidebar.boundingBox()).width;
+  await page.getByRole('button', { name: 'Synthetic feed' }).click();
+  model.fullTexts['1:abc'] = '<p>Long synthetic article.</p>'.repeat(100);
+  await page.locator('#stories .story').first().click();
+  await expect(page.locator('#full-text-status')).toHaveText('Full text from NewsBlur.');
+  await page.evaluate(() => scrollTo(0, 700));
+  const toggle = page.locator('#sidebar-toggle');
+  expect((await toggle.boundingBox()).y).toBe(12);
+  await toggle.click();
+  await expect(toggle).toHaveAccessibleName('Expand sidebar');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(sidebar).toBeHidden();
+  await expect(handle).toBeHidden();
+  expect((await page.locator('#article').boundingBox()).x).toBe(0);
+  await toggle.focus();
+  await page.keyboard.press('Enter');
+  await expect(sidebar).toBeVisible();
+  expect((await sidebar.boundingBox()).width).toBe(width);
+  await toggle.click();
+  await page.reload();
+  await expect(toggle).toHaveAccessibleName('Expand sidebar');
+  await expect(sidebar).toBeHidden();
+  await expect(page.locator('#stories-heading')).toHaveText('All feeds');
+  await page.locator('#main').focus();
+  await page.keyboard.press('g');
+  await page.keyboard.press('f');
+  await expect(sidebar).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Read Reading', exact: true })).toBeFocused();
+  expect(model.actions).toEqual([]);
+});
+
+test('site icons follow the selected feed into collection and article headings', async ({ page }) => {
+  await fixture(page);
+  const icon = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
+  await page.route('**/api/feeds', route => route.fulfill({ json: { feeds: [{ id: 1, title: 'Synthetic feed', positive: 1, neutral: 2, icon }], folders: [] } }));
+  await page.reload();
+  const feed = page.getByRole('button', { name: 'Synthetic feed' });
+  await expect.poll(() => feed.locator('img').evaluate(img => img.naturalWidth)).toBe(1);
+  await feed.click();
+  await expect(feed).toHaveAttribute('aria-current', 'true');
+  await expect(page.locator('#stories-heading img')).toHaveAttribute('src', icon);
+  await expect(page.locator('#stories .story-kicker img')).toHaveCount(2);
+  await page.locator('#stories .story').first().click();
+  await expect(page.locator('#article-feed img')).toHaveAttribute('src', icon);
+  await page.getByRole('button', { name: 'Back to stories', exact: true }).click();
+  await page.getByRole('button', { name: 'All feeds', exact: true }).click();
+  await expect(page.locator('#stories-heading .site-icon')).toHaveCount(0);
+});

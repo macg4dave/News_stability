@@ -2,6 +2,7 @@ package newsblur
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -17,6 +18,7 @@ var ErrSessionExpired = errors.New("NewsBlur session expired")
 type Feed struct {
 	ID       int    `json:"id"`
 	Title    string `json:"title"`
+	Icon     string `json:"icon,omitempty"`
 	Positive int    `json:"positive"`
 	Neutral  int    `json:"neutral"`
 	Negative int    `json:"negative"`
@@ -38,7 +40,7 @@ type Navigation struct {
 // Feeds loads navigation from the candidate installed-server API. It requests no
 // forced count recalculation and never changes subscriptions or reading state.
 func (c *Client) Feeds(ctx context.Context) (Navigation, error) {
-	body, err := c.request(ctx, http.MethodGet, "/reader/feeds?include_favicons=false", nil)
+	body, err := c.request(ctx, http.MethodGet, "/reader/feeds?include_favicons=true", nil)
 	if err != nil {
 		return Navigation{}, sessionError(err)
 	}
@@ -47,6 +49,7 @@ func (c *Client) Feeds(ctx context.Context) (Navigation, error) {
 		Code          *int  `json:"code"`
 		Feeds         map[string]struct {
 			Title    string `json:"feed_title"`
+			Favicon  string `json:"favicon"`
 			Positive int    `json:"ps"`
 			Neutral  int    `json:"nt"`
 			Negative int    `json:"ng"`
@@ -71,7 +74,7 @@ func (c *Client) Feeds(ctx context.Context) (Navigation, error) {
 		if err != nil || id < 1 || upstream.Positive < 0 || upstream.Neutral < 0 || upstream.Negative < 0 {
 			return Navigation{}, ErrInvalidResponse
 		}
-		nav.Feeds = append(nav.Feeds, Feed{ID: id, Title: upstream.Title, Positive: upstream.Positive, Neutral: upstream.Neutral, Negative: upstream.Negative})
+		nav.Feeds = append(nav.Feeds, Feed{ID: id, Title: upstream.Title, Icon: feedIcon(upstream.Favicon), Positive: upstream.Positive, Neutral: upstream.Neutral, Negative: upstream.Negative})
 	}
 	sort.Slice(nav.Feeds, func(i, j int) bool {
 		if nav.Feeds[i].Title == nav.Feeds[j].Title {
@@ -81,6 +84,19 @@ func (c *Client) Feeds(ctx context.Context) (Navigation, error) {
 	})
 	nav.Folders, err = decodeFolders(result.Folders, 0)
 	return nav, err
+}
+
+// NewsBlur supplies base64-encoded PNG favicons. Keep arbitrary URLs and active
+// formats out of navigation; unavailable icons do not prevent feed reading.
+func feedIcon(value string) string {
+	if len(value) > 128*1024 {
+		return ""
+	}
+	raw, err := base64.StdEncoding.DecodeString(value)
+	if err != nil || http.DetectContentType(raw) != "image/png" {
+		return ""
+	}
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(raw)
 }
 
 func sessionError(err error) error {

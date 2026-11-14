@@ -234,3 +234,10 @@ remembered layout, and retained article width. Appearance (`a`) and shortcut
 help (`?`) remain available without toolbar icons. Installed-server and human
 review gates above remain open.
 Verification: full npm test passed (92 browser checks and 10 shipped-container tests); 36 review screenshots regenerated. Evidence: .local/floating-layout-gate.log and .local/floating-layout-review.log.
+
+Sidebar refinement: synthetic coverage checks collapse/expand while scrolled,
+keyboard activation, saved collapse state, restored width and selection, source
+icons in navigation and headings, and rejected non-PNG/oversized favicon input.
+NewsBlur upstream icons are reused without external favicon services. The installed
+server's favicon availability still needs operator verification.
+Verification: full npm test passed (94 browser checks, 10 shipped-container tests, Go/static/race checks). A final focused run also passed both sidebar/icon regressions after adding keyboard reopen coverage. Evidence: .local/sidebar-icons-gate.log and .local/sidebar-collapse-final.log. Regenerated 36 review screenshots; local preview rebuilt and healthy.

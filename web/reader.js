@@ -219,6 +219,27 @@ function applyStoryFilters() {
 el("story-filters").addEventListener("submit", event => { event.preventDefault(); applyStoryFilters(); });
 el("read-filter").addEventListener("change", applyStoryFilters);
 
+function siteIcon(feed) {
+  const icon = document.createElement("span");
+  icon.className = "site-icon";
+  icon.setAttribute("aria-hidden", "true");
+  icon.dataset.initial = [...(feed?.title || "NewsBlur")][0].toUpperCase();
+  if (/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(feed?.icon || "")) {
+    const image = document.createElement("img");
+    image.alt = "";
+    image.src = feed.icon;
+    image.addEventListener("error", () => image.remove(), { once:true });
+    image.addEventListener("load", () => { icon.replaceChildren(image); }, { once:true });
+    icon.append(image);
+  }
+  return icon;
+}
+
+function heading(id, text, feed) {
+  message(id, text);
+  if (feed) el(id).prepend(siteIcon(feed));
+}
+
 function feedButton(feed) {
   const button = document.createElement("button");
   button.type = "button";
@@ -226,7 +247,8 @@ function feedButton(feed) {
   button.dataset.feedId = String(feed.id);
   button.setAttribute("aria-current", String(state.view === "feed" && feed.id === state.feed?.id));
   const title = document.createElement("span");
-  title.textContent = feed.title || "Untitled feed";
+  title.className = "feed-title";
+  title.append(siteIcon(feed), document.createTextNode(feed.title || "Untitled feed"));
   const count = document.createElement("span");
   count.className = "count";
   count.textContent = String(feed.positive + feed.neutral);
@@ -307,7 +329,7 @@ async function loadFeeds() {
     }
     if (state.feed && state.feeds.has(state.feed.id)) {
       state.feed = state.feeds.get(state.feed.id);
-      message("stories-heading", state.feed.title);
+      heading("stories-heading", state.feed.title, state.feed);
     } else if (state.feed) {
       state.feed = null;
       state.storyRequest?.abort();
@@ -380,7 +402,7 @@ function selectStory(story, preserveOrigin = false) {
   el("back-to-stories").hidden = !state.originStory;
   el("story-return").hidden = !state.originStory;
   message("article-title", story.title || "Untitled story");
-  message("article-feed", story.feed_title || state.feeds.get(story.feed_id)?.title || state.feed?.title || "NewsBlur");
+  heading("article-feed", story.feed_title || state.feeds.get(story.feed_id)?.title || state.feed?.title || "NewsBlur", state.feeds.get(story.feed_id) || state.feed);
   renderStoryMeta(el("article-meta"), story);
   renderArticleContent(story);
   let original = null;
@@ -585,6 +607,7 @@ function renderStories(items = state.stories, append = false) {
     const kicker = document.createElement("span");
     kicker.className = "story-kicker";
     kicker.textContent = story.feed_title || state.feeds.get(story.feed_id)?.title || state.feed?.title || "NewsBlur";
+    kicker.prepend(siteIcon(state.feeds.get(story.feed_id) || state.feed));
     button.append(kicker);
     const title = document.createElement("strong");
     title.dir = "auto";
@@ -756,7 +779,7 @@ async function loadReadingPage(selection) {
       el("collection-updated").replaceChildren("Last refreshed ", timeElement(new Date()));
       el("collection-updated").hidden = false;
     }
-    message("stories-heading", title);
+    heading("stories-heading", title, kind === "feed" ? state.feed : null);
     renderStories(append ? fresh : state.stories, append);
     if (!append) resetScrollRead();
     const briefingStates = {
@@ -824,6 +847,7 @@ keyboard.on("j", () => moveStory(1));
 keyboard.on("k", () => moveStory(-1));
 keyboard.on("v", () => { if (!el("original").hidden) el("original").click(); });
 keyboard.on("g f", () => {
+  if (el("sidebar-toggle").getAttribute("aria-expanded") === "false") el("sidebar-toggle").click();
   if (el("reader").classList.contains("article-open")) returnToStories();
   (el("feed-tree").querySelector(".feed[aria-current='true']") || el("feed-tree").querySelector(".feed"))?.focus();
 });

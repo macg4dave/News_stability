@@ -181,3 +181,25 @@ body:has(#reader:not([hidden])) > footer { margin-inline-start:var(--sidebar-wid
 
 .reading-tools, .layout-tools { display:flex; align-items:center; gap:.25rem; }
 .floating-tools .icon-button[aria-pressed="true"] { background:var(--wash); border-color:var(--ink); color:var(--ink); }
+
+/* Calm paper-toned scroll chrome, with native scrolling and keyboard support. */
+.subscriptions { scrollbar-width:thin; scrollbar-color:var(--line) var(--panel); padding-top:3.5rem; }
+.subscriptions:hover, .subscriptions:focus-within { scrollbar-color:var(--muted) var(--panel); }
+.subscriptions::-webkit-scrollbar { width:8px; }
+.subscriptions::-webkit-scrollbar-track { background:var(--panel); }
+.subscriptions::-webkit-scrollbar-thumb { background:var(--line); border:2px solid var(--panel); border-radius:8px; }
+.subscriptions::-webkit-scrollbar-thumb:hover { background:var(--muted); }
+#sidebar-toggle { position:fixed; top:.75rem; left:calc(var(--sidebar-width) - 3.5rem); z-index:4; background:var(--panel); border:1px solid var(--line); }
+.sidebar-collapsed { --sidebar-width:0px; }
+.sidebar-collapsed #sidebar-toggle { left:.75rem; }
+.sidebar-collapsed #sidebar-toggle .icon { transform:scaleX(-1); }
+.sidebar-collapsed .collection-heading { padding-inline-start:3.25rem; }
+.sidebar-collapsed #article > :first-child { margin-inline-start:3.25rem; }
+.site-icon { display:inline-flex; width:1.2rem; height:1.2rem; flex:none; vertical-align:middle; align-items:center; justify-content:center; border-radius:4px; background:var(--wash); color:var(--muted); font:600 .7rem/1 system-ui,sans-serif; overflow:hidden; }
+.site-icon img { width:100%; height:100%; object-fit:contain; }
+.feed-title { display:flex; align-items:center; gap:.55rem; min-width:0; }
+.feed .count { margin-inline-start:auto; }
+#stories-heading .site-icon { width:1.6rem; height:1.6rem; margin-inline-end:.5rem; }
+#article-feed .site-icon, .story-kicker .site-icon { margin-inline-end:.45rem; }
+
+.site-icon:not(:has(img))::before { content:attr(data-initial); }
